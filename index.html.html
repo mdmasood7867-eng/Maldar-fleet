@@ -213,10 +213,55 @@ textarea.fc{resize:vertical;min-height:60px}
 }
 @media print{#sidebar,#topbar,.btn,button{display:none!important}body,#app,#main,#content{background:#fff;height:auto;overflow:visible}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+
+/* ── LOGIN SCREEN ── */
+#login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px}
+.login-card{background:#fff;border-radius:20px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 25px 80px rgba(0,0,0,.4);text-align:center}
+.login-logo{width:56px;height:56px;background:linear-gradient(135deg,#2563eb,#7c3aed);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px}
+.login-title{font-size:22px;font-weight:800;color:#0f172a;letter-spacing:-.4px;margin-bottom:4px}
+.login-sub{font-size:13px;color:#94a3b8;margin-bottom:28px}
+.login-field{margin-bottom:14px;text-align:left}
+.login-field label{font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:5px}
+.login-input{width:100%;padding:11px 14px;border:2px solid #e2e8f0;border-radius:10px;font-size:14px;font-family:inherit;color:#0f172a;background:#f8fafc;transition:border .15s}
+.login-input:focus{outline:none;border-color:#2563eb;background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.login-btn{width:100%;padding:13px;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px;transition:all .15s;letter-spacing:-.2px}
+.login-btn:hover{background:linear-gradient(135deg,#1d4ed8,#4338ca);box-shadow:0 4px 15px rgba(37,99,235,.35)}
+.login-err{background:#fef2f2;border:1px solid rgba(220,38,38,.2);border-radius:8px;padding:9px 12px;font-size:13px;color:#b91c1c;margin-bottom:12px;display:none;border-left:3px solid #dc2626}
+.login-err.show{display:block}
+.login-footer{font-size:11px;color:#cbd5e1;margin-top:20px}
+.show-pass{position:relative}
+.show-pass input{padding-right:40px}
+.show-pass button{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;font-size:13px;padding:4px}
+#lock-btn{position:fixed;bottom:70px;right:14px;z-index:999;background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;border:none;border-radius:100px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.3);display:none}
+@media(max-width:768px){.login-card{padding:28px 22px;border-radius:16px}#lock-btn{bottom:72px}}
 </style>
 </head>
 <body>
 <div class="sr">Maldar Fleet Manager — Truck Management Application</div>
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">🚛</div>
+    <div class="login-title">Maldar Fleet</div>
+    <div class="login-sub">Sign in to access your fleet manager</div>
+    <div class="login-err" id="login-err">Incorrect username or password. Please try again.</div>
+    <div class="login-field">
+      <label>Username</label>
+      <input type="text" class="login-input" id="login-user" placeholder="Enter username" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <div class="show-pass">
+        <input type="password" class="login-input" id="login-pass" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+        <button type="button" onclick="togglePass()" id="eye-btn">👁</button>
+      </div>
+    </div>
+    <button class="login-btn" onclick="doLogin()">Sign In →</button>
+    <div class="login-footer">Maldar Roadlines · Private Access Only</div>
+  </div>
+</div>
+<button id="lock-btn" onclick="doLogout()" title="Lock / Sign Out">🔒 Lock</button>
+
 <div id="app">
 <!-- SIDEBAR -->
 <nav id="sidebar">
@@ -2068,6 +2113,19 @@ function pgSettings(){
   </div>
   <div>
     <div class="card mb12">
+      <div class="sdiv">🔐 Login Credentials</div>
+      <div class="al-bl alert mb12">Change your username and password here. Default login is <strong>maldar / fleet2024</strong></div>
+      <div class="fr2">
+        <div class="fg"><label class="fl">Username</label>
+          <input type="text" class="fc" id="cred-user" value="${localStorage.getItem('FL_USER')||'maldar'}" placeholder="Username"></div>
+        <div class="fg"><label class="fl">New Password</label>
+          <input type="password" class="fc" id="cred-pass" placeholder="Enter new password"></div>
+      </div>
+      <div class="fg"><label class="fl">Confirm New Password</label>
+        <input type="password" class="fc" id="cred-pass2" placeholder="Confirm new password"></div>
+      <button class="btn btn-primary" onclick="saveCreds()">Save Login Credentials</button>
+    </div>
+    <div class="card mb12">
       <div class="sdiv">Owner Details</div>
       <div class="fg"><label class="fl">Owner Name</label><input type="text" class="fc" id="own-n" value="${H(DB.owner?.name||'')}"></div>
       <div class="fg"><label class="fl">Phone</label><input type="text" class="fc" id="own-ph" value="${H(DB.owner?.phone||'')}"></div>
@@ -2130,6 +2188,20 @@ function calcRate(){
 }
 
 // ═══════════════════════════════════════════════════
+// CREDENTIALS
+// ═══════════════════════════════════════════════════
+function saveCreds(){
+  const u = document.getElementById('cred-user')?.value.trim();
+  const p = document.getElementById('cred-pass')?.value;
+  const p2 = document.getElementById('cred-pass2')?.value;
+  if(!u){ alert('Username cannot be empty.'); return; }
+  if(p && p !== p2){ alert('Passwords do not match. Please try again.'); return; }
+  localStorage.setItem('FL_USER', u);
+  if(p) localStorage.setItem('FL_PASS', p);
+  alert('✅ Login credentials saved!\n\nUsername: ' + u + '\nPassword: ' + (p ? '(updated)' : '(unchanged)'));
+}
+
+// ═══════════════════════════════════════════════════
 // MODAL
 // ═══════════════════════════════════════════════════
 function OM(title,body,onSave){
@@ -2145,8 +2217,91 @@ document.getElementById('MOV').addEventListener('click',e=>{if(e.target===docume
 // ═══════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════
-initDB();
-go('dashboard');
+
+// ═══════════════════════════════════════════════════
+// LOGIN SYSTEM
+// ═══════════════════════════════════════════════════
+// Default credentials — change these in Settings
+const DEFAULT_USER = 'maldar';
+const DEFAULT_PASS = 'fleet2024';
+
+function getCredentials(){
+  return {
+    user: localStorage.getItem('FL_USER') || DEFAULT_USER,
+    pass: localStorage.getItem('FL_PASS') || DEFAULT_PASS
+  };
+}
+
+function isLoggedIn(){
+  return sessionStorage.getItem('FL_AUTH') === 'yes';
+}
+
+function doLogin(){
+  const uEl = document.getElementById('login-user');
+  const pEl = document.getElementById('login-pass');
+  const err = document.getElementById('login-err');
+  const scr = document.getElementById('login-screen');
+  const lbtn = document.getElementById('lock-btn');
+  if(!uEl||!pEl) return;
+  const u = uEl.value.trim();
+  const p = pEl.value;
+  const creds = getCredentials();
+  if(!u || !p){
+    if(err){err.textContent='Please enter username and password.';err.classList.add('show');}
+    return;
+  }
+  if(u === creds.user && p === creds.pass){
+    sessionStorage.setItem('FL_AUTH','yes');
+    if(scr) scr.style.display='none';
+    if(lbtn) lbtn.style.display='block';
+    if(err) err.classList.remove('show');
+    go('dashboard');
+  } else {
+    if(err){err.textContent='Incorrect username or password. Please try again.';err.classList.add('show');}
+    pEl.value='';
+    pEl.focus();
+  }
+}
+
+function doLogout(){
+  if(!confirm('Lock the app and sign out?')) return;
+  sessionStorage.removeItem('FL_AUTH');
+  const scr=document.getElementById('login-screen');
+  const lbtn=document.getElementById('lock-btn');
+  const uEl=document.getElementById('login-user');
+  const pEl=document.getElementById('login-pass');
+  if(scr) scr.style.display='flex';
+  if(lbtn) lbtn.style.display='none';
+  if(uEl) uEl.value='';
+  if(pEl) pEl.value='';
+  setTimeout(()=>{ const el=document.getElementById('login-user'); if(el)el.focus(); },100);
+}
+
+function togglePass(){
+  const inp = document.getElementById('login-pass');
+  inp.type = inp.type==='password' ? 'text' : 'password';
+}
+
+function checkAuth(){
+  const scr = document.getElementById('login-screen');
+  const lbtn = document.getElementById('lock-btn');
+  if(!scr) return; // element not in DOM yet - skip
+  if(isLoggedIn()){
+    scr.style.display='none';
+    if(lbtn) lbtn.style.display='block';
+    go('dashboard');
+  } else {
+    scr.style.display='flex';
+    if(lbtn) lbtn.style.display='none';
+    setTimeout(()=>{ const el=document.getElementById('login-user'); if(el)el.focus(); }, 150);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  initDB();
+  checkAuth();
+});
 </script>
+
 </body>
 </html>
