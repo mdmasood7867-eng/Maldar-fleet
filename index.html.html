@@ -1,0 +1,2152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Maldar Fleet Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f2f8;--card:#fff;--border:#dde1ee;
+  --text:#0f172a;--text2:#475569;--text3:#94a3b8;
+  --blue:#2563eb;--bluebg:#eff6ff;--bluetxt:#1d4ed8;
+  --green:#16a34a;--greenbg:#f0fdf4;--greentxt:#15803d;
+  --red:#dc2626;--redbg:#fef2f2;--redtxt:#b91c1c;
+  --amber:#d97706;--amberbg:#fffbeb;--ambertxt:#92400e;
+  --purple:#7c3aed;--purplebg:#f5f3ff;--purpletxt:#5b21b6;
+  --teal:#0d9488;--tealbg:#f0fdfa;--tealtxt:#0f766e;
+  --pink:#db2777;--pinkbg:#fdf2f8;--pinktxt:#9d174d;
+  --indigo:#4f46e5;--indigobg:#eef2ff;--indigotxt:#3730a3;
+  --r:10px;--font:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
+/* LAYOUT */
+#app{display:flex;height:100vh;overflow:hidden}
+#sidebar{width:226px;background:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);border-right:none;display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+#content{flex:1;overflow-y:auto;padding:20px}
+/* SIDEBAR */
+.sb-logo{padding:16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sb-logo h1{font-size:15px;font-weight:800;color:#fff;letter-spacing:-.3px}
+.sb-logo p{font-size:11px;color:rgba(255,255,255,.45);margin-top:2px}
+.sb-section{padding:6px 0}
+.sb-label{font-size:9px;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:1px;padding:8px 16px 3px}
+.nav-btn{display:flex;align-items:center;gap:9px;padding:8px 16px;font-size:13px;color:rgba(255,255,255,.6);border:none;background:none;width:100%;text-align:left;cursor:pointer;border-radius:0;transition:all .12s}
+.nav-btn:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav-btn.active{background:rgba(37,99,235,.35);color:#fff;font-weight:600;border-left:3px solid #60a5fa}
+.nav-btn svg{width:15px;height:15px;flex-shrink:0;opacity:.6}
+.nav-btn.active svg{opacity:1}
+/* TOPBAR */
+.tb-title{font-size:16px;font-weight:700;flex:1;color:var(--text)}
+.tb-sub{font-size:12px;color:var(--text3)}
+#topbar-actions{display:flex;gap:8px;align-items:center}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--r);border:1px solid var(--border);background:#fff;color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:all .12s;white-space:nowrap}
+.btn:hover{background:#f8fafc;border-color:#c7d2e7}
+.btn-primary{background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:none;box-shadow:0 2px 8px rgba(37,99,235,.3)}
+.btn-primary:hover{background:linear-gradient(135deg,#1d4ed8,#4338ca);box-shadow:0 4px 12px rgba(37,99,235,.4)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-danger{background:var(--redbg);color:var(--redtxt);border-color:rgba(220,38,38,.2)}
+.btn-success{background:var(--greenbg);color:var(--greentxt);border-color:rgba(22,163,74,.2)}
+.btn-amber{background:var(--amberbg);color:var(--ambertxt);border-color:rgba(217,119,6,.2)}
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.card-sm{padding:12px}
+/* GRADIENT HERO CARDS */
+.hero-blue{background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;border:none}
+.hero-green{background:linear-gradient(135deg,#065f46,#16a34a);color:#fff;border:none}
+.hero-red{background:linear-gradient(135deg,#991b1b,#dc2626);color:#fff;border:none}
+.hero-purple{background:linear-gradient(135deg,#4c1d95,#7c3aed);color:#fff;border:none}
+.hero-amber{background:linear-gradient(135deg,#78350f,#d97706);color:#fff;border:none}
+.hero-teal{background:linear-gradient(135deg,#134e4a,#0d9488);color:#fff;border:none}
+.hero-indigo{background:linear-gradient(135deg,#312e81,#4f46e5);color:#fff;border:none}
+/* GRID */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.ga{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+/* METRIC CARDS */
+.metric{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.04);position:relative;overflow:hidden}
+.metric::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--border)}
+.metric.gn::before{background:linear-gradient(90deg,#16a34a,#4ade80)}
+.metric.rd::before{background:linear-gradient(90deg,#dc2626,#f87171)}
+.metric.am::before{background:linear-gradient(90deg,#d97706,#fbbf24)}
+.metric.bl::before{background:linear-gradient(90deg,#2563eb,#60a5fa)}
+.metric.pu::before{background:linear-gradient(90deg,#7c3aed,#a78bfa)}
+.metric.te::before{background:linear-gradient(90deg,#0d9488,#34d399)}
+.mlabel{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.mval{font-size:22px;font-weight:800;color:var(--text);line-height:1.1;letter-spacing:-.5px}
+.msub{font-size:11px;color:var(--text3);margin-top:3px}
+.metric.gn .mval{color:var(--greentxt)}
+.metric.rd .mval{color:var(--redtxt)}
+.metric.am .mval{color:var(--ambertxt)}
+.metric.bl .mval{color:var(--bluetxt)}
+.metric.pu .mval{color:var(--purpletxt)}
+.metric.te .mval{color:var(--tealtxt)}
+/* HERO METRICS (big display cards) */
+.hmetric{border-radius:14px;padding:18px;color:#fff;position:relative;overflow:hidden}
+.hmetric::after{content:'';position:absolute;right:-20px;top:-20px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.08)}
+.hmetric .mlabel{color:rgba(255,255,255,.75);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.hmetric .mval{font-size:26px;font-weight:800;color:#fff;letter-spacing:-.5px}
+.hmetric .msub{color:rgba(255,255,255,.65);font-size:11px;margin-top:4px}
+/* BADGES */
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:100px;font-size:11px;font-weight:600;white-space:nowrap}
+.b-gn{background:#dcfce7;color:#15803d}
+.b-rd{background:#fee2e2;color:#b91c1c}
+.b-am{background:#fef3c7;color:#92400e}
+.b-bl{background:#dbeafe;color:#1d4ed8}
+.b-gr{background:#f1f5f9;color:#475569}
+.b-pu{background:#ede9fe;color:#5b21b6}
+.b-te{background:#ccfbf1;color:#0f766e}
+/* TABLES */
+.tbl-wrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.04)}
+table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
+th{padding:9px 12px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);background:#f8fafc;white-space:nowrap;text-align:left}
+td{padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+.tr{text-align:right}
+.tc{text-align:center}
+/* PER-KM PILL */
+.pkm-pill{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:700;background:#f1f5f9;color:var(--text2)}
+.pkm-pill.good{background:#dcfce7;color:#15803d}
+.pkm-pill.warn{background:#fef3c7;color:#92400e}
+.pkm-pill.bad{background:#fee2e2;color:#b91c1c}
+/* FORMS */
+.fg{margin-bottom:13px}
+.fl{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;display:block}
+.req{color:var(--redtxt)}
+.fc{width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:var(--r);font-size:13px;font-family:inherit;color:var(--text);background:#fff;min-height:36px;transition:all .12s}
+.fc:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+select.fc{cursor:pointer}
+textarea.fc{resize:vertical;min-height:60px}
+.fr2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.calc{background:linear-gradient(135deg,#eff6ff,#e0e7ff);border:1.5px solid rgba(37,99,235,.2);border-radius:var(--r);padding:9px 13px;font-size:14px;font-weight:800;color:var(--bluetxt)}
+.calc.gn{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-color:rgba(22,163,74,.25);color:var(--greentxt)}
+.calc.rd{background:linear-gradient(135deg,#fef2f2,#fee2e2);border-color:rgba(220,38,38,.25);color:var(--redtxt)}
+.calc.am{background:linear-gradient(135deg,#fffbeb,#fef3c7);border-color:rgba(217,119,6,.25);color:var(--ambertxt)}
+.sdiv{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;padding-bottom:7px;border-bottom:2px solid #e2e8f0;margin:18px 0 12px;display:flex;align-items:center;gap:6px}
+.sdiv::before{content:'';display:inline-block;width:3px;height:14px;border-radius:2px;background:var(--blue)}
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:18px;width:100%;max-width:660px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 25px 80px rgba(0,0,0,.2)}
+.modal-hdr{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:linear-gradient(135deg,#f8fafc,#f1f5f9);border-radius:18px 18px 0 0}
+.modal-title{font-size:15px;font-weight:700}
+.modal-body{padding:20px;overflow-y:auto;flex:1}
+.modal-ftr{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
+/* PROGRESS */
+.pw{background:#e2e8f0;border-radius:100px;height:8px;overflow:hidden}
+.pf{height:100%;border-radius:100px;transition:width .4s}
+.pf.gn{background:linear-gradient(90deg,#16a34a,#4ade80)}
+.pf.am{background:linear-gradient(90deg,#d97706,#fbbf24)}
+.pf.rd{background:linear-gradient(90deg,#dc2626,#f87171)}
+/* ALERTS */
+.alert{padding:11px 15px;border-radius:var(--r);font-size:13px;margin-bottom:10px;border-left:4px solid transparent}
+.al-gn{background:var(--greenbg);color:var(--greentxt);border-color:var(--green)}
+.al-rd{background:var(--redbg);color:var(--redtxt);border-color:var(--red)}
+.al-am{background:var(--amberbg);color:var(--ambertxt);border-color:var(--amber)}
+.al-bl{background:var(--bluebg);color:var(--bluetxt);border-color:var(--blue)}
+/* FILTERS */
+.fbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.fbar input,.fbar select{padding:6px 11px;border:1.5px solid var(--border);border-radius:var(--r);font-size:12px;font-family:inherit;color:var(--text);background:#fff;min-height:32px}
+/* MISC */
+.infobox{background:linear-gradient(135deg,var(--bluebg),#e0e7ff);border:1px solid rgba(37,99,235,.2);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--bluetxt);margin-bottom:12px;font-weight:500}
+.fuel-row{background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1.5px solid var(--border);border-radius:var(--r);padding:13px;margin-bottom:9px}
+.ph{margin-bottom:18px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.ph h2{font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.4px}
+.ph p{font-size:12px;color:var(--text3);margin-top:3px}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}
+.fw7{font-weight:700}.fw6{font-weight:600}.fs11{font-size:11px}.fs12{font-size:12px}
+.col-g{color:var(--greentxt)}.col-r{color:var(--redtxt)}.col-a{color:var(--ambertxt)}.col-b{color:var(--bluetxt)}.col-3{color:var(--text3)}
+/* TRUCK TABS */
+.truck-tabs{display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap}
+.truck-tab{padding:7px 16px;border-radius:100px;border:2px solid var(--border);font-size:12px;font-weight:700;cursor:pointer;background:#fff;color:var(--text2);transition:all .15s}
+.truck-tab:nth-child(1).active{background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(37,99,235,.3)}
+.truck-tab:nth-child(2).active{background:linear-gradient(135deg,#4c1d95,#7c3aed);color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(124,58,237,.3)}
+.truck-tab:nth-child(3).active{background:linear-gradient(135deg,#065f46,#0d9488);color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(13,148,136,.3)}
+/* CHART */
+.chart-wrap{position:relative;width:100%}
+/* EMPTY */
+.empty{text-align:center;padding:40px 20px;color:var(--text3)}
+.empty svg{width:40px;height:40px;margin:0 auto 12px;opacity:.3}
+.empty p{font-size:13px;font-weight:600}
+.empty small{font-size:12px}
+/* ACTIVITY */
+.act-item{padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:12px}
+.act-item:last-child{border-bottom:none}
+/* COST TABLE */
+.cost-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:var(--r);margin-bottom:4px;background:#f8fafc;border:1px solid #f1f5f9}
+.cost-row:hover{background:#f1f5f9}
+.cost-row .ci{display:flex;align-items:center;gap:10px}
+.cost-row .ci-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.cost-total{display:flex;justify-content:space-between;align-items:center;padding:14px;border-radius:var(--r);font-weight:800;font-size:16px;background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;margin-top:8px}
+/* TRIP PROFIT CARD */
+.trip-profit-bar{display:flex;align-items:center;gap:6px;margin-top:4px}
+.trip-profit-seg{height:6px;border-radius:3px}
+/* SECTION HEADERS */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.section-header h3{font-size:14px;font-weight:700;color:var(--text)}
+/* MOBILE */
+@media(max-width:768px){
+  #sidebar{position:fixed;bottom:0;left:0;right:0;width:100%;height:60px;flex-direction:row;border-right:none;border-top:2px solid rgba(255,255,255,.1);overflow-x:auto;overflow-y:hidden;z-index:50;background:linear-gradient(180deg,#1e293b,#0f172a)}
+  .sb-logo,.sb-section,.sb-label{display:none}
+  #sidebar>.sb-section{display:flex;padding:0;flex-direction:row;align-items:center;flex:1}
+  .nav-btn{flex-direction:column;gap:2px;padding:6px 8px;font-size:9px;min-width:54px;border-radius:0;align-items:center}
+  .nav-btn.active{border-left:none;border-top:2px solid #60a5fa}
+  .nav-btn svg{width:20px;height:20px}
+  #main{margin-bottom:60px}
+  #content{padding:12px}
+  .g4,.g3{grid-template-columns:1fr 1fr}
+  .g2{grid-template-columns:1fr 1fr}
+  .fr2,.fr3{grid-template-columns:1fr}
+  .modal{max-width:100%;max-height:90vh;border-radius:16px 16px 0 0}
+  .modal-overlay{align-items:flex-end;padding:0}
+  .modal-hdr{border-radius:16px 16px 0 0}
+  table{font-size:12px}
+  .ph{flex-direction:column}
+  .fbar{flex-direction:column;align-items:stretch}
+  .fbar input,.fbar select{width:100%}
+}
+@media print{#sidebar,#topbar,.btn,button{display:none!important}body,#app,#main,#content{background:#fff;height:auto;overflow:visible}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+</style>
+</head>
+<body>
+<div class="sr">Maldar Fleet Manager — Truck Management Application</div>
+<div id="app">
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sb-logo">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <div style="width:30px;height:30px;background:linear-gradient(135deg,#3b82f6,#6366f1);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">🚛</div>
+      <h1>Maldar Fleet</h1>
+    </div>
+    <p id="sb-sub">2 Trucks · Hyderabad</p>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Overview</div>
+    <button class="nav-btn active" onclick="go('dashboard')" data-p="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-btn" onclick="go('quick')" data-p="quick">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      Quick Entry
+    </button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Operations</div>
+    <button class="nav-btn" onclick="go('trips')" data-p="trips">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6-10l6 3m0 7l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-1.447-.894L15 10"/></svg>
+      Trip Log
+    </button>
+    <button class="nav-btn" onclick="go('fuel')" data-p="fuel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="10" rx="5" ry="3"/><path d="M7 10v6c0 1.66 2.24 3 5 3s5-1.34 5-3v-6"/></svg>
+      Fuel Log
+    </button>
+    <button class="nav-btn" onclick="go('expenses')" data-p="expenses">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+      Expenses
+    </button>
+    <button class="nav-btn" onclick="go('recv')" data-p="recv">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Receivables
+    </button>
+    <button class="nav-btn" onclick="go('routes')" data-p="routes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M6 16v-1a6 6 0 016-6h2"/></svg>
+      Routes
+    </button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Fleet</div>
+    <button class="nav-btn" onclick="go('fleet')" data-p="fleet">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      Fleet Overview
+    </button>
+    <button class="nav-btn" onclick="go('drivers')" data-p="drivers">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Drivers
+    </button>
+    <button class="nav-btn" onclick="go('brokers')" data-p="brokers">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      Brokers
+    </button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Tracking</div>
+    <button class="nav-btn" onclick="go('maint')" data-p="maint">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      Maintenance
+    </button>
+    <button class="nav-btn" onclick="go('docs')" data-p="docs">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Documents
+    </button>
+    <button class="nav-btn" onclick="go('tyres')" data-p="tyres">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+      Tyres
+    </button>
+    <button class="nav-btn" onclick="go('loans')" data-p="loans">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 17h20M2 7h20M12 7v10"/></svg>
+      Loans
+    </button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Finance</div>
+    <button class="nav-btn" onclick="go('pl')" data-p="pl">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Monthly P&amp;L
+    </button>
+    <button class="nav-btn" onclick="go('cashflow')" data-p="cashflow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Cash Flow
+    </button>
+    <button class="nav-btn" onclick="go('fixed')" data-p="fixed">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/></svg>
+      Fixed &amp; Cost/KM
+    </button>
+    <button class="nav-btn" onclick="go('savings')" data-p="savings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Savings
+    </button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">More</div>
+    <button class="nav-btn" onclick="go('paddy')" data-p="paddy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l4-8 4 4 4-6 4 10"/></svg>
+      Paddy Season
+    </button>
+    <button class="nav-btn" onclick="go('bank')" data-p="bank">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Bank Report
+    </button>
+    <button class="nav-btn" onclick="go('activity')" data-p="activity">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4z"/></svg>
+      Activity Log
+    </button>
+    <button class="nav-btn" onclick="go('settings')" data-p="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </button>
+  </div>
+</nav>
+<!-- MAIN -->
+<div id="main">
+  <div id="topbar" style="background:linear-gradient(135deg,#fff 0%,#f8fafc 100%)">
+    <span class="tb-title" id="ttl">Dashboard</span>
+    <span class="tb-sub" id="tsub">Maldar Roadlines</span>
+    <div id="topbar-actions"></div>
+  </div>
+  <div id="content"></div>
+</div>
+</div>
+<!-- MODAL -->
+<div class="modal-overlay" id="MOV">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title" id="MTITLE">Add</span>
+      <button class="btn btn-sm" onclick="CM()">✕</button>
+    </div>
+    <div class="modal-body" id="MBODY"></div>
+    <div class="modal-ftr">
+      <button class="btn" onclick="CM()">Cancel</button>
+      <button class="btn btn-primary" onclick="MS()">Save</button>
+    </div>
+  </div>
+</div>
+<script>
+// ═══════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════
+const H=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const INR=v=>'₹'+Math.round(+(v)||0).toLocaleString('en-IN');
+const KM=v=>Math.round(+(v)||0).toLocaleString('en-IN')+' km';
+const today=()=>new Date().toISOString().slice(0,10);
+const now=()=>new Date().toLocaleString('en-IN');
+const fD=d=>{if(!d)return'—';const p=d.split('-');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:d;};
+const dDiff=d=>{if(!d)return null;return Math.ceil((new Date(d)-new Date())/(864e5));};
+const nid=a=>a.length?Math.max(0,...a.map(x=>+(x.id)||0))+1:1;
+const nv=id=>+(document.getElementById(id)?.value||0);
+const sv=id=>(document.getElementById(id)?.value||'').trim();
+const lv=id=>document.getElementById(id)?.value||'';
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const normB=s=>(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+const emSt=(t,s)=>`<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><p>${H(t)}</p><small>${H(s)}</small></div>`;
+
+// ═══════════════════════════════════════════════════
+// DATABASE
+// ═══════════════════════════════════════════════════
+const KEY='MALDAR_FLEET_v1';
+let DB={};
+
+function initDB(){
+  try{const r=localStorage.getItem(KEY);if(r)DB=migrate(JSON.parse(r));else DB=fresh();}
+  catch(e){DB=fresh();}
+}
+function save(){DB._v=(+(DB._v)||0)+1;DB._ts=now();localStorage.setItem(KEY,JSON.stringify(DB));}
+function migrate(d){
+  const f=fresh();
+  ['trucks','trips','fuel','expenses','loans','loanPay','tyres','maint','docs','fixed','savings','drivers','brokers','paddySeas','paddyEntr','activity'].forEach(k=>{
+    if(!Array.isArray(d[k]))d[k]=f[k];
+  });
+  if(!d.trucks||!d.trucks.length)d.trucks=f.trucks;
+  (d.trips||[]).forEach(t=>{
+    if(t.payStatus===undefined)t.payStatus='Pending';
+    if(t.recv===undefined)t.recv=0;
+    if(t.pending===undefined)t.pending=+(t.income)||0;
+  });
+  return d;
+}
+function fresh(){
+  return{
+    _v:1,_ts:'',
+    trucks:[
+      {id:1,reg:'TS01UA9828',make:'Ashok Leyland',model:'',type:'12-Tyre HCV',year:'',price:0,driver:'',city:'Hyderabad',status:'Active',notes:''},
+      {id:2,reg:'Truck 2',make:'',model:'',type:'12-Tyre HCV',year:'',price:0,driver:'',city:'Hyderabad',status:'Active',notes:''}
+    ],
+    trips:[],fuel:[],expenses:[],loans:[],loanPay:[],
+    tyres:mkTyres(),maint:mkMaint(),docs:mkDocs(),
+    fixed:mkFixed(),savings:mkSavings(),
+    drivers:[],brokers:[],paddySeas:[],paddyEntr:[],activity:[]
+  };
+}
+function mkTyres(){
+  const pos=['Steer L','Steer R','DA1 L-Out','DA1 L-In','DA1 R-In','DA1 R-Out','DA2 L-Out','DA2 L-In','DA2 R-In','DA2 R-Out','Spare 1','Spare 2'];
+  const r=[];
+  [1,2].forEach(tid=>pos.forEach((p,i)=>r.push({id:r.length+1,tid,pos:p,brand:'',cost:0,fit:0,rem:0,exp:100000,status:'Empty',notes:''})));
+  return r;
+}
+function mkMaint(){
+  const items=[['Greasing',5000],['Engine Oil',10000],['Oil Filter',10000],['Air Filter',10000],['Coolant',10000],['Battery',15000],['Clutch',15000],['Fuel Filter',20000],['Brakes',20000],['Tyre Rotation',25000],['Wheel Alignment',30000],['Major Service',50000]];
+  const r=[];
+  [1,2].forEach(tid=>items.forEach(([item,kmi],i)=>r.push({id:r.length+1,tid,item,kmi,lastKm:0,lastDate:'',cost:0,garage:'',notes:''})));
+  return r;
+}
+function mkDocs(){
+  const names=['RC – Registration','Fitness Certificate','Insurance','National Permit','State Permit – Telangana','State Permit – Maharashtra','PUC Certificate','Road Tax','Driver License','Goods Carriage Auth'];
+  const r=[];
+  [1,2].forEach(tid=>names.forEach((n,i)=>r.push({id:r.length+1,tid,name:n,no:'',issue:'',expiry:'',notes:''})));
+  return r;
+}
+function mkFixed(){
+  const items=['Insurance','Road Tax','National Permit','Fitness Certificate','Other'];
+  const r=[];
+  [1,2].forEach(tid=>items.forEach((n,i)=>r.push({id:r.length+1,tid,item:n,annual:0,notes:''})));
+  return r;
+}
+function mkSavings(){
+  return[
+    {id:1,goal:'Tyre Replacement',target:5000,total:60000,saved:0},
+    {id:2,goal:'Emergency Fund',target:3000,total:50000,saved:0},
+    {id:3,goal:'New Truck Fund',target:10000,total:500000,saved:0}
+  ];
+}
+
+// ═══════════════════════════════════════════════════
+// CORE CALCULATIONS (single source of truth)
+// ═══════════════════════════════════════════════════
+function calcTrip(t){
+  const income=+(t.income)||0;
+  const fuel=+(t.fuelCost)||0;
+  const toll=+(t.toll)||0;
+  const load=+(t.load)||0;
+  const unload=+(t.unload)||0;
+  const other=+(t.other)||0;
+  const tyre=+(t.tyreCost)||0;
+  const empty=+(t.emptyCost)||0;
+  const exp=fuel+toll+load+unload+other+tyre+empty;
+  const net=income-exp;
+  const km=+(t.km)||1;
+  return{income,fuel,toll,load,unload,other,tyre,empty,exp,net,cpkm:exp/km,ppkm:net/km};
+}
+
+function odo(tid){
+  let m=0;
+  DB.trips.filter(t=>t.tid===tid).forEach(t=>{if(+(t.finalKm)>m)m=+(t.finalKm);});
+  DB.fuel.filter(f=>f.tid===tid).forEach(f=>{if(+(f.odo)>m)m=+(f.odo);});
+  return m;
+}
+
+function mStats(tid,y,m){
+  const trips=DB.trips.filter(t=>{
+    if(tid&&t.tid!==tid)return false;
+    const d=new Date(t.date);return d.getFullYear()===y&&d.getMonth()===m;
+  });
+  const exps=DB.expenses.filter(e=>{
+    if(tid&&e.tid!==tid)return false;
+    const d=new Date(e.date);return d.getFullYear()===y&&d.getMonth()===m;
+  });
+  let inc=0,fuel=0,toll=0,load=0,net=0,km=0;
+  trips.forEach(t=>{const c=calcTrip(t);inc+=c.income;fuel+=c.fuel;toll+=c.toll;load+=c.load+c.unload;net+=c.net;km+=+(t.km)||0;});
+  const addl=exps.reduce((s,e)=>s+(+(e.amt)||0),0);
+  return{trips:trips.length,inc,fuel,toll,load,addl,exp:fuel+toll+load+addl,net:net-addl,km};
+}
+
+function allStats(tid){
+  const trips=tid?DB.trips.filter(t=>t.tid===tid):DB.trips;
+  let inc=0,fuel=0,toll=0,km=0,net=0;
+  trips.forEach(t=>{const c=calcTrip(t);inc+=c.income;fuel+=c.fuel;toll+=c.toll;km+=+(t.km)||0;net+=c.net;});
+  const addl=(tid?DB.expenses.filter(e=>e.tid===tid):DB.expenses).reduce((s,e)=>s+(+(e.amt)||0),0);
+  const pend=trips.reduce((s,t)=>s+(+(t.pending)||0),0);
+  const loans=(tid?DB.loans.filter(l=>l.tid===tid):DB.loans).filter(l=>l.status==='Active').reduce((s,l)=>s+(+(l.rem)||0),0);
+  return{trips:trips.length,inc,fuel,toll,km,net:net-addl,pend,loans,avgMil:avgMil(tid)};
+}
+
+function avgMil(tid){
+  const fills=(tid?DB.fuel.filter(f=>f.tid===tid):DB.fuel).filter(f=>+(f.mil)>0);
+  if(!fills.length)return 0;
+  return+(fills.reduce((s,f)=>s+(+(f.mil)||0),0)/fills.length).toFixed(2);
+}
+
+function recalcFuel(tid){
+  const sorted=DB.fuel.filter(f=>f.tid===tid&&+(f.odo)>0).sort((a,b)=>+(a.odo)-+(b.odo));
+  sorted.forEach((f,i)=>{
+    if(i>0){const p=sorted[i-1];const d=+(f.odo)-+(p.odo);f.kmSince=d>0?d:0;f.mil=d>0&&+(f.ltrs)>0?+(d/+(f.ltrs)).toFixed(2):0;}
+    else{f.kmSince=0;f.mil=0;}
+  });
+}
+
+function ensureBroker(name){
+  if(!name)return;
+  const k=normB(name);
+  if(!DB.brokers.find(b=>normB(b.name)===k))DB.brokers.push({id:nid(DB.brokers),name:name.trim(),phone:'',city:'',notes:''});
+}
+
+function normPay(t){
+  t.pending=Math.max(0,(+(t.income)||0)-(+(t.recv)||0));
+  t.payStatus=+(t.recv)<=0?'Pending':t.pending>0?'Partial':'Paid';
+}
+
+function log(type,detail){
+  if(!DB.activity)DB.activity=[];
+  DB.activity.unshift({id:nid(DB.activity),type,detail,ts:now()});
+  if(DB.activity.length>300)DB.activity=DB.activity.slice(0,300);
+}
+
+function truckName(tid){const t=DB.trucks.find(x=>x.id===tid);return t?t.reg:'Truck '+tid;}
+function truckColor(tid){return tid===1?'#2563eb':'#7c3aed';}
+
+// ═══════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════
+let CP='dashboard',MC=null,EID=null,CHI={};
+const TITLES={dashboard:'Dashboard',quick:'Quick Entry',trips:'Trip Log',fuel:'Fuel Log',expenses:'Expenses',recv:'Receivables',routes:'Route Analysis',fleet:'Fleet Overview',drivers:'Drivers',brokers:'Brokers',maint:'Maintenance & Service',docs:'Documents & Expiry',tyres:'Tyre Tracker',loans:'Loans',pl:'Monthly P&L',cashflow:'Weekly Cash Flow',fixed:'Fixed Costs & Cost/KM',savings:'Savings',paddy:'Paddy Season',bank:'Bank Report',activity:'Activity Log',settings:'Settings'};
+
+function go(p){
+  CP=p;
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.p===p));
+  document.getElementById('ttl').textContent=TITLES[p]||p;
+  document.getElementById('tsub').textContent=`${DB.trucks.filter(t=>t.status==='Active').length} Active Trucks · Maldar Roadlines`;
+  document.getElementById('topbar-actions').innerHTML='';
+  Object.values(CHI).forEach(c=>{try{c.destroy();}catch(e){}});CHI={};
+  const pages={dashboard:pgDash,quick:pgQuick,trips:pgTrips,fuel:pgFuel,expenses:pgExp,recv:pgRecv,routes:pgRoutes,fleet:pgFleet,drivers:pgDrivers,brokers:pgBrokers,maint:pgMaint,docs:pgDocs,tyres:pgTyres,loans:pgLoans,pl:pgPL,cashflow:pgCF,fixed:pgFixed,savings:pgSav,paddy:pgPaddy,bank:pgBank,activity:pgActivity,settings:pgSettings};
+  document.getElementById('content').innerHTML=pages[p]?pages[p]():emSt('Coming soon','');
+  if(p==='dashboard')afterDash();
+  if(p==='pl')afterPL();
+  if(p==='cashflow')afterCF();
+  if(p==='fuel')afterFuelChart();
+  if(p==='fixed')afterFixed();
+}
+
+// ═══════════════════════════════════════════════════
+// TRUCK SELECTOR WIDGET
+// ═══════════════════════════════════════════════════
+let selTruck=0; // 0 = all trucks
+function truckSel(cb){
+  const tabs=[{id:0,label:'All Trucks'},...DB.trucks].map(t=>`<button class="truck-tab${selTruck===t.id?' active':''}" onclick="selTruck=${t.id};${cb}">${H(t.label||t.reg)}</button>`).join('');
+  return`<div class="truck-tabs">${tabs}</div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════
+function pgDash(){
+  const now2=new Date();const y=now2.getFullYear();const m=now2.getMonth();
+  const ms=mStats(selTruck||0,y,m);
+  const at=allStats(selTruck||0);
+  const avgM=avgMil(selTruck||0);
+  const profC=ms.net>=0?'gn':'rd';
+  const cpkm=ms.km>0?(ms.exp/ms.km).toFixed(2):'—';
+  const ppkm=ms.km>0?(ms.net/ms.km).toFixed(2):'—';
+
+  // Doc alerts (all trucks or selected)
+  const docAlerts=DB.docs.filter(d=>{
+    if(selTruck&&d.tid!==selTruck)return false;
+    return d.expiry&&dDiff(d.expiry)!==null&&dDiff(d.expiry)<60;
+  }).map(d=>({...d,days:dDiff(d.expiry),truck:truckName(d.tid)})).sort((a,b)=>a.days-b.days);
+
+  // Maintenance alerts
+  const maintAlerts=DB.maint.filter(m2=>{
+    if(selTruck&&m2.tid!==selTruck)return false;
+    if(!m2.lastKm)return false;
+    const rem=m2.lastKm+m2.kmi-odo(m2.tid);
+    return rem<5000;
+  }).map(m2=>({...m2,rem:m2.lastKm+m2.kmi-odo(m2.tid),truck:truckName(m2.tid)}));
+
+  const recent=DB.trips.filter(t=>!selTruck||t.tid===selTruck).slice().reverse().slice(0,5);
+
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="go('quick')">+ Quick Entry</button>`;
+
+  const urgentAlerts=[...docAlerts.filter(d=>d.days<0||d.days<30),...maintAlerts.filter(m=>m.rem<=0)];
+
+  return`
+${truckSel("go('dashboard')")}
+${urgentAlerts.length?`<div class="alert al-rd mb12">🚨 ${urgentAlerts.length} urgent alert${urgentAlerts.length>1?'s':''}: ${urgentAlerts.slice(0,2).map(a=>a.name||a.item).join(', ')}${urgentAlerts.length>2?' and more...':''}. <a href="#" onclick="go('docs');return false">Check documents</a> | <a href="#" onclick="go('maint');return false">Check maintenance</a></div>`:''}
+
+<div class="g4 mb14">
+  <div class="hmetric hero-blue"><div class="mlabel">This Month Income</div><div class="mval">${INR(ms.inc)}</div><div class="msub">${ms.trips} trips completed</div></div>
+  <div class="hmetric ${ms.net>=0?'hero-green':'hero-red'}"><div class="mlabel">Net Profit / Loss</div><div class="mval">${INR(ms.net)}</div><div class="msub">${ms.net>=0?'↑ Making profit':'↓ Running at loss'}</div></div>
+  <div class="hmetric hero-purple"><div class="mlabel">Total Expenses</div><div class="mval">${INR(ms.exp)}</div><div class="msub">Fuel + Toll + Other</div></div>
+  <div class="hmetric ${at.pend>0?'hero-amber':'hero-teal'}"><div class="mlabel">Pending Receivables</div><div class="mval">${INR(at.pend)}</div><div class="msub">Unpaid freight money</div></div>
+</div>
+<div class="g4 mb16">
+  <div class="metric"><div class="mlabel">Fuel Cost</div><div class="mval">${INR(ms.fuel)}</div></div>
+  <div class="metric"><div class="mlabel">Toll Paid</div><div class="mval">${INR(ms.toll)}</div></div>
+  <div class="metric ${avgM>0?'gn':''}"><div class="mlabel">Avg Mileage</div><div class="mval">${avgM>0?avgM+' km/L':'—'}</div></div>
+  <div class="metric ${at.loans>0?'rd':''}"><div class="mlabel">Active Loans</div><div class="mval">${INR(at.loans)}</div></div>
+</div>
+<div class="g4 mb16">
+  <div class="metric"><div class="mlabel">Cost / KM</div><div class="mval">${cpkm!=='—'?'₹'+cpkm:'—'}</div></div>
+  <div class="metric ${ms.net>=0?'gn':'rd'}"><div class="mlabel">Profit / KM</div><div class="mval">${ppkm!=='—'?'₹'+ppkm:'—'}</div></div>
+  <div class="metric"><div class="mlabel">KM This Month</div><div class="mval">${KM(ms.km)}</div></div>
+  <div class="metric"><div class="mlabel">All-time Trips</div><div class="mval">${at.trips}</div></div>
+</div>
+
+<div class="g2 mb16">
+  <div class="card"><div class="fw6 mb8" style="font-size:13px">Income vs Expenses (6 months)</div>
+    <div class="chart-wrap" style="height:190px"><canvas id="ch-inc"></canvas></div></div>
+  <div class="card"><div class="fw6 mb8" style="font-size:13px">Fuel Mileage Trend</div>
+    <div class="chart-wrap" style="height:190px"><canvas id="ch-mil"></canvas></div></div>
+</div>
+
+<div class="g2 mb16">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span class="fw6" style="font-size:13px">🚨 Document Alerts</span>
+      <button class="btn btn-sm" onclick="go('docs')">View All</button>
+    </div>
+    ${docAlerts.length===0?'<p style="font-size:13px;color:var(--text3)">All documents OK — keep checking regularly</p>':
+    docAlerts.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f0efe8">
+      <div><div style="font-size:13px">${H(d.name)}</div><div class="fs11 col-3">${H(d.truck)}</div></div>
+      <span class="badge ${d.days<0?'b-rd':d.days<30?'b-am':'b-bl'}">${d.days<0?'EXPIRED':d.days+'d left'}</span>
+    </div>`).join('')}
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span class="fw6" style="font-size:13px">🔧 Maintenance Alerts</span>
+      <button class="btn btn-sm" onclick="go('maint')">View All</button>
+    </div>
+    ${maintAlerts.length===0?`<p style="font-size:13px;color:var(--text3)">${odo(1)+odo(2)===0?'Enter odometer readings to see alerts':'All services on schedule ✓'}</p>`:
+    maintAlerts.map(m2=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f0efe8">
+      <div><div style="font-size:13px">${H(m2.item)}</div><div class="fs11 col-3">${H(m2.truck)}</div></div>
+      <span class="badge ${m2.rem<=0?'b-rd':'b-am'}">${m2.rem<=0?'OVERDUE':KM(m2.rem)+' left'}</span>
+    </div>`).join('')}
+  </div>
+</div>
+
+<div class="card mb16">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <span class="fw6" style="font-size:13px">Recent Trips</span>
+    <button class="btn btn-sm" onclick="go('trips')">View All</button>
+  </div>
+  ${recent.length===0?emSt('No trips yet','Use Quick Entry to add your first trip'):`
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Date</th><th>Truck</th><th>Route</th><th>Income</th><th>Net Profit</th><th>Cost/KM</th><th>Profit/KM</th><th>Payment</th></tr></thead>
+    <tbody>${recent.map(t=>{const c=calcTrip(t);const cpk=t.km>0?(c.exp/t.km).toFixed(1):'—';const ppk=t.km>0?(c.net/t.km).toFixed(1):'—';const ppc=t.km>0?(c.net/t.km>10?'good':c.net/t.km>0?'warn':'bad'):'';return`<tr>
+      <td style="white-space:nowrap">${fD(t.date)}</td>
+      <td><span class="badge" style="background:${truckColor(t.tid)}22;color:${truckColor(t.tid)};font-weight:700">${H(truckName(t.tid))}</span></td>
+      <td style="white-space:nowrap;font-weight:600">${H(t.from||'?')}→${H(t.to||'?')}</td>
+      <td class="tr fw6">${INR(c.income)}</td>
+      <td class="tr fw7" style="color:${c.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(c.net)}</td>
+      <td class="tr"><span class="pkm-pill">${cpk!=='—'?'₹'+cpk+'/km':'—'}</span></td>
+      <td class="tr"><span class="pkm-pill ${ppc}">${ppk!=='—'?'₹'+ppk+'/km':'—'}</span></td>
+      <td><span class="badge ${t.payStatus==='Paid'?'b-gn':t.payStatus==='Partial'?'b-am':'b-rd'}">${t.payStatus||'Pending'}</span></td>
+    </tr>`;}).join('')}</tbody>
+  </table></div>`}
+</div>
+
+<div class="card">
+  <div class="fw6 mb12" style="font-size:13px">All-Time Totals${selTruck?' — '+truckName(selTruck):' — All Trucks'}</div>
+  <div class="g4">
+    <div class="metric bl"><div class="mlabel">Total Trips</div><div class="mval">${at.trips}</div></div>
+    <div class="metric"><div class="mlabel">Total Income</div><div class="mval">${INR(at.inc)}</div></div>
+    <div class="metric ${at.net>=0?'gn':'rd'}"><div class="mlabel">Net Profit</div><div class="mval">${INR(at.net)}</div></div>
+    <div class="metric pu"><div class="mlabel">Avg Profit/Trip</div><div class="mval">${at.trips>0?INR(at.net/at.trips):'—'}</div></div>
+    <div class="metric te"><div class="mlabel">Total KM</div><div class="mval">${KM(at.km)}</div></div>
+    <div class="metric am"><div class="mlabel">Total Fuel Cost</div><div class="mval">${INR(at.fuel)}</div></div>
+    <div class="metric"><div class="mlabel">Total Toll</div><div class="mval">${INR(at.toll)}</div></div>
+    <div class="metric ${avgM>0?'gn':''}"><div class="mlabel">Avg Mileage</div><div class="mval">${avgM>0?avgM+' km/L':'—'}</div></div>
+  </div>
+</div>`;
+}
+
+function afterDash(){
+  const gc='#e0dfd7',lc='#999';
+  const mns=[],inc=[],exp=[];
+  for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);
+    mns.push(d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}));
+    const s=mStats(selTruck||0,d.getFullYear(),d.getMonth());inc.push(s.inc);exp.push(s.exp);}
+  const c1=document.getElementById('ch-inc');
+  if(c1)CHI.inc=new Chart(c1,{type:'bar',data:{labels:mns,datasets:[{label:'Income',data:inc,backgroundColor:'#2563eb',borderRadius:3,borderSkipped:false},{label:'Expenses',data:exp,backgroundColor:'#dc2626',borderRadius:3,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gc},ticks:{color:lc,font:{size:10}}},y:{grid:{color:gc},ticks:{color:lc,font:{size:10},callback:v=>'₹'+Math.round(v/1000)+'k'}}}}});
+  const fills=(selTruck?DB.fuel.filter(f=>f.tid===selTruck):DB.fuel).filter(f=>+(f.mil)>0).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(-12);
+  const c2=document.getElementById('ch-mil');
+  if(c2)CHI.mil=new Chart(c2,{type:'line',data:{labels:fills.map(f=>fD(f.date)),datasets:[{label:'km/L',data:fills.map(f=>+(f.mil)),borderColor:'#16a34a',backgroundColor:'rgba(22,163,74,.08)',tension:.4,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:lc,font:{size:10}}},y:{grid:{color:gc},ticks:{color:lc,font:{size:10}}}}}});
+}
+
+// ═══════════════════════════════════════════════════
+// QUICK ENTRY
+// ═══════════════════════════════════════════════════
+let qTid=1,qFC=1;
+
+function pgQuick(){
+  qFC=1;
+  const cities=[...new Set(DB.trips.flatMap(t=>[t.from,t.to]).filter(Boolean))];
+  const bnames=DB.brokers.map(b=>b.name);
+  const dnames=DB.drivers.map(d=>d.name);
+  return`
+<div class="ph"><div><h2>Quick Entry</h2><p>Enter once — everything updates everywhere automatically.</p></div></div>
+<div style="margin-bottom:14px">
+  <div class="mlabel mb8">Select Truck</div>
+  <div class="truck-tabs">
+    ${DB.trucks.map(t=>`<button class="truck-tab${qTid===t.id?' active':''}" onclick="qTid=${t.id};go('quick')">${H(t.reg)}</button>`).join('')}
+  </div>
+</div>
+<div class="card" style="max-width:820px">
+<div class="sdiv">Trip Details — ${H(truckName(qTid))}</div>
+<div class="fr3">
+  <div class="fg"><label class="fl">Date <span class="req">*</span></label><input type="date" class="fc" id="q-date" value="${today()}"></div>
+  <div class="fg"><label class="fl">From City <span class="req">*</span></label><input type="text" class="fc" id="q-from" placeholder="e.g. Hyderabad" list="q-cities" autocomplete="off"></div>
+  <div class="fg"><label class="fl">To City <span class="req">*</span></label><input type="text" class="fc" id="q-to" placeholder="e.g. Chandrapur" list="q-cities" autocomplete="off"></div>
+</div>
+<datalist id="q-cities">${cities.map(c=>`<option value="${H(c)}">`).join('')}</datalist>
+<div class="fr3">
+  <div class="fg"><label class="fl">Goods</label><input type="text" class="fc" id="q-goods" placeholder="Coal / Wheat / Parcel..."></div>
+  <div class="fg"><label class="fl">Broker / Client</label><input type="text" class="fc" id="q-broker" list="q-brokers" autocomplete="off"></div>
+  <div class="fg"><label class="fl">Driver</label>
+    <select class="fc" id="q-driver"><option value="">None / Self</option>${dnames.map(d=>`<option>${H(d)}</option>`).join('')}</select>
+  </div>
+</div>
+<datalist id="q-brokers">${bnames.map(b=>`<option value="${H(b)}">`).join('')}</datalist>
+<div class="fr2">
+  <div class="fg"><label class="fl">Trip Type</label>
+    <select class="fc" id="q-ttype"><option>Round Trip</option><option>One Way UP</option><option>One Way DOWN</option><option>Local</option></select>
+  </div>
+</div>
+
+<div class="sdiv">Income & Payment</div>
+<div class="fr3">
+  <div class="fg"><label class="fl">Rate Type</label>
+    <select class="fc" id="q-rtype" onchange="qCalc()"><option>Per Trip</option><option>Per Tonne</option><option>Per Bag</option><option>Per Day</option><option>Fixed</option></select>
+  </div>
+  <div class="fg"><label class="fl">Quantity</label><input type="number" class="fc" id="q-qty" value="1" min="0.01" step="0.01" oninput="qCalc()"></div>
+  <div class="fg"><label class="fl">Rate (₹)</label><input type="number" class="fc" id="q-rate" placeholder="0" min="0" oninput="qCalc()"></div>
+</div>
+<div class="fr3 mb12">
+  <div><label class="fl">Total Freight</label><div class="calc" id="q-inc">₹0</div></div>
+  <div class="fg"><label class="fl">Amount Received (₹)</label><input type="number" class="fc" id="q-recv" value="0" min="0" oninput="qCalc()"></div>
+  <div><label class="fl">Pending / Status</label><div class="calc rd" id="q-pay">₹0 · Pending</div></div>
+</div>
+
+<div class="sdiv">Odometer & Distance</div>
+<div class="fr3">
+  <div class="fg"><label class="fl">Start Odometer</label><input type="number" class="fc" id="q-kms" placeholder="${odo(qTid)||0}" min="0" oninput="qCalcKm()"></div>
+  <div class="fg"><label class="fl">End Odometer</label><input type="number" class="fc" id="q-kme" placeholder="0" min="0" oninput="qCalcKm()"></div>
+  <div><label class="fl">Trip KM</label><div class="calc" id="q-km">0 km</div><input type="hidden" id="q-km-val" value="0"></div>
+</div>
+<div class="fr3 mb8">
+  <div class="fg"><label class="fl">Empty KM (no load)</label><input type="number" class="fc" id="q-ekm" placeholder="0" min="0" oninput="qCalc()"></div>
+  <div class="fg"><label class="fl">Days on Road</label><input type="number" class="fc" id="q-days" value="1" min="1"></div>
+</div>
+
+<div class="sdiv">Toll & Trip Expenses</div>
+<div class="fr3">
+  <div class="fg"><label class="fl">Toll UP (₹)</label><input type="number" class="fc" id="q-t1" placeholder="0" min="0" oninput="qCalc()"></div>
+  <div class="fg"><label class="fl">Toll DOWN (₹)</label><input type="number" class="fc" id="q-t2" placeholder="0" min="0" oninput="qCalc()"></div>
+  <div><label class="fl">Total Toll</label><div class="calc" id="q-toll">₹0</div></div>
+</div>
+<div class="fr3">
+  <div class="fg"><label class="fl">Loading (₹)</label><input type="number" class="fc" id="q-load" placeholder="0" min="0" oninput="qCalc()"></div>
+  <div class="fg"><label class="fl">Unloading (₹)</label><input type="number" class="fc" id="q-unload" placeholder="0" min="0" oninput="qCalc()"></div>
+  <div class="fg"><label class="fl">Other Expenses (₹)</label><input type="number" class="fc" id="q-other" placeholder="0" min="0" oninput="qCalc()"></div>
+</div>
+<div class="fr2 mb12">
+  <div><label class="fl">Total Expenses</label><div class="calc" id="q-exp">₹0</div></div>
+  <div><label class="fl">TRUE PROFIT (after fuel+tyre+empty)</label><div class="calc" id="q-profit">₹0</div></div>
+</div>
+
+<div class="sdiv">Fuel Fills</div>
+<div id="q-fuel">
+  <div class="fuel-row" data-fi="0">
+    <div class="fw6 fs11 col-3 mb8">FILL 1</div>
+    <div class="fr3">
+      <div class="fg"><label class="fl">Liters</label><input type="number" class="fc" id="f0-l" placeholder="0" min="0" step="0.01" oninput="qFCalc(0);qCalc()"></div>
+      <div class="fg"><label class="fl">₹/Liter</label><input type="number" class="fc" id="f0-p" placeholder="0" min="0" step="0.01" oninput="qFCalc(0);qCalc()"></div>
+      <div><label class="fl">Cost</label><div class="calc" id="f0-c">₹0</div></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Odometer at Fill</label><input type="number" class="fc" id="f0-o" placeholder="0" min="0"></div>
+      <div class="fg"><label class="fl">Location</label><input type="text" class="fc" id="f0-loc" placeholder="Station / City"></div>
+    </div>
+  </div>
+</div>
+<button class="btn btn-sm mb12" onclick="qAddFuel()">+ Add fuel fill</button>
+<div class="fg"><label class="fl">Notes</label><textarea class="fc" id="q-notes" rows="2" placeholder="Any notes..."></textarea></div>
+<div class="sdiv">Live Cost Analysis</div>
+<div class="g3 mb12">
+  <div>
+    <label class="fl">Cost per KM</label>
+    <div class="calc" id="q-cpkm" style="font-size:16px">₹0/km</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:3px">Total expenses ÷ KM</div>
+  </div>
+  <div>
+    <label class="fl">Profit per KM</label>
+    <div class="calc gn" id="q-ppkm" style="font-size:16px">₹0/km</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:3px">Net income ÷ KM</div>
+  </div>
+  <div>
+    <label class="fl">Break-even Rate</label>
+    <div class="calc am" id="q-bkeven" style="font-size:16px">₹0</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:3px">Min freight needed</div>
+  </div>
+</div>
+<div style="border-top:1px solid var(--border);padding-top:14px;margin-top:8px">
+  <button class="btn btn-primary" onclick="qSave()" style="width:100%;padding:13px;font-size:15px;font-weight:700">✓ Save Trip for ${H(truckName(qTid))}</button>
+</div>
+</div>`;
+}
+
+function qCalc(){
+  const qty=nv('q-qty')||1,rate=nv('q-rate'),inc=qty*rate;
+  const recv=nv('q-recv');
+  const t1=nv('q-t1'),t2=nv('q-t2'),toll=t1+t2;
+  const load=nv('q-load'),unload=nv('q-unload'),other=nv('q-other');
+  let fuel=0;
+  document.querySelectorAll('.fuel-row').forEach(r=>{const i=r.dataset.fi;fuel+=nv(`f${i}-l`)*nv(`f${i}-p`);});
+  const ekm=nv('q-ekm');
+  const allFuel=DB.fuel.filter(f=>f.tid===qTid);
+  const avgFPKM=allFuel.length>1?(allFuel.reduce((s,f)=>s+(+(f.totalCost)||0),0)/Math.max(1,DB.trips.filter(t=>t.tid===qTid).reduce((s,t)=>s+(+(t.km)||0),0))):0;
+  const emptyCost=ekm*avgFPKM;
+  // tyre cost per km
+  const tyres=DB.tyres.filter(t=>t.tid===qTid);
+  const tyrePKM=tyres.reduce((s,t)=>s+(+(t.cost)||0),0)/Math.max(1,tyres.reduce((s,t)=>s+(+(t.exp)||100000),0));
+  const kms=nv('q-kme')-nv('q-kms');const km2=kms>0?kms:0;
+  const tyreCost=km2*tyrePKM;
+  const totalExp=fuel+toll+load+unload+other+tyreCost+emptyCost;
+  const profit=inc-totalExp;
+  const pend=Math.max(0,inc-recv);
+  const payLbl=recv<=0?'Pending':pend>0?'Partial':'Paid';
+  const set=(id,v,cls)=>{const e=document.getElementById(id);if(e){e.textContent=v;if(cls)e.className='calc '+cls;}};
+  set('q-inc',INR(inc));
+  set('q-toll',INR(toll));
+  set('q-exp',INR(totalExp));
+  set('q-profit',INR(profit),profit>=0?'gn':'rd');
+  const ep=document.getElementById('q-pay');if(ep){ep.textContent=INR(pend)+' · '+payLbl;ep.className='calc '+(recv<=0?'rd':pend>0?'am':'gn');}
+  // per-km live display
+  const ks2=nv('q-kms');const ke2=nv('q-kme');const km3=ke2>ks2&&ks2>0?ke2-ks2:(+(document.getElementById('q-km-val')?.value)||0);
+  const cpkmEl=document.getElementById('q-cpkm');
+  const ppkmEl=document.getElementById('q-ppkm');
+  const bkEl=document.getElementById('q-bkeven');
+  if(cpkmEl){if(km3>0){cpkmEl.textContent='₹'+(totalExp/km3).toFixed(1)+'/km';cpkmEl.className='calc';}else{cpkmEl.textContent='Enter KM';}  }
+  if(ppkmEl){if(km3>0){const ppv=profit/km3;ppkmEl.textContent='₹'+ppv.toFixed(1)+'/km';ppkmEl.className='calc '+(ppv>=0?'gn':'rd');}else{ppkmEl.textContent='Enter KM';ppkmEl.className='calc gn';}}
+  if(bkEl){_totalPKM>0&&km3>0?bkEl.textContent=INR(Math.round(_totalPKM*km3)):bkEl.textContent='Set in Fixed Costs';}
+}
+function qFCalc(i){const e=document.getElementById(`f${i}-c`);if(e)e.textContent=INR(nv(`f${i}-l`)*nv(`f${i}-p`));}
+function qCalcKm(){const s=nv('q-kms'),e=nv('q-kme'),k=e>s?e-s:0;const el=document.getElementById('q-km');if(el)el.textContent=KM(k);const hid=document.getElementById('q-km-val');if(hid)hid.value=k;qCalc();}
+function qAddFuel(){
+  const i=qFC++;const d=document.createElement('div');
+  d.className='fuel-row';d.dataset.fi=i;
+  d.innerHTML=`<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span class="fw6 fs11 col-3">FILL ${i+1}</span><button class="btn btn-sm btn-danger" onclick="this.closest('.fuel-row').remove();qCalc()">Remove</button></div>
+  <div class="fr3"><div class="fg"><label class="fl">Liters</label><input type="number" class="fc" id="f${i}-l" placeholder="0" min="0" step="0.01" oninput="qFCalc(${i});qCalc()"></div><div class="fg"><label class="fl">₹/Liter</label><input type="number" class="fc" id="f${i}-p" placeholder="0" min="0" step="0.01" oninput="qFCalc(${i});qCalc()"></div><div><label class="fl">Cost</label><div class="calc" id="f${i}-c">₹0</div></div></div>
+  <div class="fr2"><div class="fg"><label class="fl">Odometer</label><input type="number" class="fc" id="f${i}-o" placeholder="0" min="0"></div><div class="fg"><label class="fl">Location</label><input type="text" class="fc" id="f${i}-loc" placeholder="Station/City"></div></div>`;
+  document.getElementById('q-fuel').appendChild(d);
+}
+function qSave(){
+  const date=sv('q-date'),from=sv('q-from'),to=sv('q-to');
+  if(!date){alert('Enter date.');return;}
+  if(!from){alert('Enter From city.');return;}
+  if(!to){alert('Enter To city.');return;}
+  const ks=nv('q-kms'),ke=nv('q-kme');
+  if(ke>0&&ks>0&&ke<ks){alert('End odometer cannot be less than start odometer.');return;}
+  const qty=nv('q-qty')||1,rate=nv('q-rate'),inc=qty*rate;
+  const recv=nv('q-recv');
+  if(recv>inc&&inc>0){alert('Amount received cannot exceed total income.');return;}
+  const t1=nv('q-t1'),t2=nv('q-t2'),load=nv('q-load'),unload=nv('q-unload'),other=nv('q-other');
+  const broker=sv('q-broker');
+  ensureBroker(broker);
+  let fuelTotal=0;const fuelRows=[];
+  document.querySelectorAll('.fuel-row').forEach(r=>{
+    const i=r.dataset.fi;const l=nv(`f${i}-l`),p=nv(`f${i}-p`),o=nv(`f${i}-o`),loc=sv(`f${i}-loc`);
+    if(l>0){const c=l*p;fuelTotal+=c;fuelRows.push({id:nid(DB.fuel),tid:qTid,date,ltrs:l,ppl:p,totalCost:c,odo:o,location:loc,notes:'',mil:0,kmSince:0});}
+  });
+  const km=ke>ks&&ks>0?ke-ks:nv('q-ekm')>0?0:(ke>0?ke:0);
+  const tyres2=DB.tyres.filter(t=>t.tid===qTid);
+  const tyrePKM=tyres2.reduce((s,t)=>s+(+(t.cost)||0),0)/Math.max(1,tyres2.reduce((s,t)=>s+(+(t.exp)||100000),0));
+  const tyreCost=km*tyrePKM;
+  const ekm=nv('q-ekm');
+  const allFuel=DB.fuel.filter(f=>f.tid===qTid);
+  const avgFPKM=allFuel.length>1?(allFuel.reduce((s,f)=>s+(+(f.totalCost)||0),0)/Math.max(1,DB.trips.filter(t=>t.tid===qTid).reduce((s,t)=>s+(+(t.km)||0),0))):0;
+  const emptyCost=ekm*avgFPKM;
+  const tid=nid(DB.trips);
+  fuelRows.forEach(f=>{f.tripId=tid;DB.fuel.push(f);});
+  recalcFuel(qTid);
+  const trip={id:tid,tid:qTid,date,from,to,goods:sv('q-goods'),broker,driver:lv('q-driver'),ttype:lv('q-ttype'),rtype:lv('q-rtype'),qty,rate,income:inc,recv,pending:Math.max(0,inc-recv),payStatus:recv<=0?'Pending':(inc-recv>0?'Partial':'Paid'),toll:t1+t2,load,unload,other,fuelCost:fuelTotal,km,startKm:ks,finalKm:ke,emptyKm:ekm,emptyCost,tyreCost,days:nv('q-days')||1,notes:sv('q-notes')};
+  DB.trips.push(trip);
+  log('Trip Added',`${truckName(qTid)}: ${from}→${to} ${INR(inc)}`);
+  save();qFC=1;alert('Trip saved! ✓');go('quick');
+}
+
+// ═══════════════════════════════════════════════════
+// TRIP LOG
+// ═══════════════════════════════════════════════════
+let tF={search:'',month:'',tid:0,pay:''};
+function pgTrips(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openTripModal()">+ Add Trip</button>`;
+  const months=[...new Set(DB.trips.map(t=>t.date?.slice(0,7)).filter(Boolean))].sort().reverse();
+  const brokers=[...new Set(DB.trips.map(t=>t.broker).filter(Boolean))].sort();
+  let trips=DB.trips.slice().reverse();
+  if(tF.tid)trips=trips.filter(t=>t.tid===tF.tid);
+  if(tF.search){const s=tF.search.toLowerCase();trips=trips.filter(t=>((t.from||'')+(t.to||'')+(t.broker||'')+(t.goods||'')).toLowerCase().includes(s));}
+  if(tF.month)trips=trips.filter(t=>t.date?.startsWith(tF.month));
+  if(tF.pay)trips=trips.filter(t=>t.payStatus===tF.pay);
+  const totInc=trips.reduce((s,t)=>s+(+(t.income)||0),0);
+  const totNet=trips.reduce((s,t)=>s+calcTrip(t).net,0);
+  const totPend=trips.reduce((s,t)=>s+(+(t.pending)||0),0);
+  return`
+<div class="fbar">
+  <input type="search" placeholder="Search route, broker, goods..." oninput="tF.search=this.value;go('trips')" value="${H(tF.search)}">
+  <select onchange="tF.tid=+this.value;go('trips')"><option value="0">All Trucks</option>${DB.trucks.map(t=>`<option value="${t.id}" ${tF.tid===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select>
+  <select onchange="tF.month=this.value;go('trips')"><option value="">All Months</option>${months.map(m=>`<option ${tF.month===m?'selected':''}>${m}</option>`).join('')}</select>
+  <select onchange="tF.pay=this.value;go('trips')"><option value="">All Payments</option><option ${tF.pay==='Pending'?'selected':''}>Pending</option><option ${tF.pay==='Partial'?'selected':''}>Partial</option><option ${tF.pay==='Paid'?'selected':''}>Paid</option></select>
+  <button class="btn btn-sm" onclick="tF={search:'',month:'',tid:0,pay:''};go('trips')">Clear</button>
+</div>
+<div class="g3 mb12">
+  <div class="metric"><div class="mlabel">Trips Shown</div><div class="mval">${trips.length}</div></div>
+  <div class="metric"><div class="mlabel">Total Income</div><div class="mval">${INR(totInc)}</div></div>
+  <div class="metric ${totNet>=0?'gn':'rd'}"><div class="mlabel">Net Profit</div><div class="mval">${INR(totNet)}</div></div>
+</div>
+${trips.length===0?emSt('No trips found','Adjust filters or add a trip'):`
+<div class="tbl-wrap"><table>
+<thead><tr><th>#</th><th>Date</th><th>Truck</th><th>Route</th><th>Broker</th><th>Income</th><th>Fuel</th><th>Toll</th><th>Net Profit</th><th>KM</th><th>Cost/KM</th><th>Profit/KM</th><th>Payment</th><th>Pending</th><th></th></tr></thead>
+<tbody>${trips.map(t=>{const c=calcTrip(t);return`<tr>
+  <td class="col-3">${t.id}</td>
+  <td style="white-space:nowrap">${fD(t.date)}</td>
+  <td><span class="badge" style="background:${truckColor(t.tid)}18;color:${truckColor(t.tid)};font-size:10px">${H(truckName(t.tid))}</span></td>
+  <td style="white-space:nowrap">${H(t.from||'?')}→${H(t.to||'?')}</td>
+  <td>${H(t.broker||'—')}</td>
+  <td class="tr">${INR(c.income)}</td>
+  <td class="tr">${INR(c.fuel)}</td>
+  <td class="tr">${INR(c.toll)}</td>
+  <td class="tr fw6" style="color:${c.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(c.net)}</td>
+  <td>${t.km?KM(t.km):'—'}</td>
+  <td class="tr"><span class="pkm-pill">${t.km>0?'₹'+(c.exp/t.km).toFixed(1)+'/km':'—'}</span></td>
+  <td class="tr"><span class="pkm-pill ${t.km>0?(c.net/t.km>10?'good':c.net/t.km>0?'warn':'bad'):''}">
+    ${t.km>0?'₹'+(c.net/t.km).toFixed(1)+'/km':'—'}</span></td>
+  <td><span class="badge ${t.payStatus==='Paid'?'b-gn':t.payStatus==='Partial'?'b-am':'b-rd'}">${t.payStatus||'Pending'}</span></td>
+  <td class="tr">${INR(t.pending||0)}</td>
+  <td style="white-space:nowrap">
+    <button class="btn btn-sm" onclick="openTripModal(${t.id})">Edit</button>
+    <button class="btn btn-sm btn-success" onclick="openPayModal(${t.id})">₹</button>
+    <button class="btn btn-sm btn-danger" onclick="delTrip(${t.id})">Del</button>
+  </td>
+</tr>`;}).join('')}</tbody>
+</table></div>`}`;
+}
+
+function openTripModal(id){
+  EID=id||null;const t=id?DB.trips.find(x=>x.id===id):{};
+  OM(id?'Edit Trip':'Add Trip',`
+    <div class="fr3">
+      <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="mt-date" value="${t.date||today()}"></div>
+      <div class="fg"><label class="fl">Truck</label><select class="fc" id="mt-tid">${DB.trucks.map(tk=>`<option value="${tk.id}" ${t.tid===tk.id?'selected':''}>${H(tk.reg)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Driver</label><select class="fc" id="mt-drv"><option value="">None/Self</option>${DB.drivers.map(d=>`<option ${t.driver===d.name?'selected':''}>${H(d.name)}</option>`).join('')}</select></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">From</label><input type="text" class="fc" id="mt-from" value="${H(t.from||'')}"></div>
+      <div class="fg"><label class="fl">To</label><input type="text" class="fc" id="mt-to" value="${H(t.to||'')}"></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Broker</label><input type="text" class="fc" id="mt-broker" value="${H(t.broker||'')}"></div>
+      <div class="fg"><label class="fl">Goods</label><input type="text" class="fc" id="mt-goods" value="${H(t.goods||'')}"></div>
+    </div>
+    <div class="fr3">
+      <div class="fg"><label class="fl">Rate Type</label><select class="fc" id="mt-rtype">${['Per Trip','Per Tonne','Per Bag','Per Day','Fixed'].map(o=>`<option ${t.rtype===o?'selected':''}>${o}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Quantity</label><input type="number" class="fc" id="mt-qty" value="${t.qty||1}" min="0.01" step="0.01" oninput="mtCalc()"></div>
+      <div class="fg"><label class="fl">Rate (₹)</label><input type="number" class="fc" id="mt-rate" value="${t.rate||0}" min="0" oninput="mtCalc()"></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Amount Received (₹)</label><input type="number" class="fc" id="mt-recv" value="${t.recv||0}" min="0" oninput="mtCalc()"></div>
+      <div><label class="fl">Payment Status</label><div class="calc" id="mt-pay">${t.payStatus||'Pending'}</div></div>
+    </div>
+    <div class="fr3">
+      <div class="fg"><label class="fl">Total Toll (₹)</label><input type="number" class="fc" id="mt-toll" value="${t.toll||0}" min="0"></div>
+      <div class="fg"><label class="fl">Total KM</label><input type="number" class="fc" id="mt-km" value="${t.km||0}" min="0"></div>
+      <div class="fg"><label class="fl">Fuel Cost (₹)</label><input type="number" class="fc" id="mt-fuel" value="${t.fuelCost||0}" min="0"></div>
+    </div>
+    <div class="fr3">
+      <div class="fg"><label class="fl">Loading (₹)</label><input type="number" class="fc" id="mt-load" value="${t.load||0}" min="0"></div>
+      <div class="fg"><label class="fl">Unloading (₹)</label><input type="number" class="fc" id="mt-unload" value="${t.unload||0}" min="0"></div>
+      <div class="fg"><label class="fl">Other Exp (₹)</label><input type="number" class="fc" id="mt-other" value="${t.other||0}" min="0"></div>
+    </div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="mt-notes" rows="2">${H(t.notes||'')}</textarea></div>`,
+  ()=>{
+    const qty=nv('mt-qty')||1,rate=nv('mt-rate'),inc=qty*rate,recv=nv('mt-recv');
+    if(recv>inc&&inc>0){alert('Received cannot exceed total income.');return;}
+    const data={date:sv('mt-date'),tid:+lv('mt-tid'),driver:lv('mt-drv'),from:sv('mt-from'),to:sv('mt-to'),broker:sv('mt-broker'),goods:sv('mt-goods'),rtype:lv('mt-rtype'),qty,rate,income:inc,recv,pending:Math.max(0,inc-recv),payStatus:recv<=0?'Pending':(inc-recv>0?'Partial':'Paid'),toll:nv('mt-toll'),km:nv('mt-km'),fuelCost:nv('mt-fuel'),load:nv('mt-load'),unload:nv('mt-unload'),other:nv('mt-other'),notes:sv('mt-notes'),tyreCost:t.tyreCost||0,emptyCost:t.emptyCost||0};
+    ensureBroker(data.broker);
+    if(EID){const i=DB.trips.findIndex(x=>x.id===EID);if(i>=0){DB.trips[i]={...DB.trips[i],...data};log('Trip Edited',`#${EID}`);}}
+    else{DB.trips.push({id:nid(DB.trips),...data});log('Trip Added',`${data.from}→${data.to} ${INR(inc)}`);}
+    save();CM();go('trips');
+  });
+}
+function mtCalc(){
+  const qty=nv('mt-qty')||1,rate=nv('mt-rate'),inc=qty*rate,recv=nv('mt-recv'),pend=Math.max(0,inc-recv);
+  const e=document.getElementById('mt-pay');
+  if(e){e.textContent=recv<=0?'Pending':pend>0?'Partial':'Paid';e.className='calc '+(recv<=0?'rd':pend>0?'am':'gn');}
+}
+function openPayModal(tid2){
+  const t=DB.trips.find(x=>x.id===tid2);if(!t)return;
+  OM(`Record Payment — Trip #${tid2}`,`
+    <div class="infobox">Freight: ${INR(t.income)} · Received: ${INR(t.recv||0)} · Pending: ${INR(t.pending||0)}</div>
+    <div class="fg"><label class="fl">Additional Amount (₹) <span class="req">*</span></label><input type="number" class="fc" id="pay-a" placeholder="0" min="0"></div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="pay-d" value="${today()}"></div>
+      <div class="fg"><label class="fl">Method</label><select class="fc" id="pay-m"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div>
+    </div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="pay-n" rows="2"></textarea></div>`,
+  ()=>{
+    const add=nv('pay-a');
+    if(add<=0){alert('Enter amount > 0.');return;}
+    if(add>(+(t.pending)||0)+0.01){alert(`Cannot exceed pending ${INR(t.pending||0)}.`);return;}
+    t.recv=(+(t.recv)||0)+add;normPay(t);
+    log('Payment',`Trip #${tid2}: ${INR(add)} via ${lv('pay-m')}`);
+    save();CM();go('trips');
+  });
+}
+function delTrip(id){
+  const rel=DB.fuel.filter(f=>f.tripId===id).length;
+  if(!confirm(`Delete Trip #${id}?${rel?`\n\n${rel} linked fuel entr${rel>1?'ies':'y'} will also be deleted.`:''}`))return;
+  DB.fuel=DB.fuel.filter(f=>f.tripId!==id);
+  DB.trips=DB.trips.filter(x=>x.id!==id);
+  log('Trip Deleted',`#${id}`);recalcFuel(1);recalcFuel(2);save();go('trips');
+}
+
+// ═══════════════════════════════════════════════════
+// FUEL LOG
+// ═══════════════════════════════════════════════════
+let fFilt={s:'',m:'',tid:0};
+function pgFuel(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openFuelModal()">+ Add Fuel Entry</button>`;
+  const months=[...new Set(DB.fuel.map(f=>f.date?.slice(0,7)).filter(Boolean))].sort().reverse();
+  let fuel=DB.fuel.slice().sort((a,b)=>+(b.odo||0)-+(a.odo||0));
+  if(fFilt.tid)fuel=fuel.filter(f=>f.tid===fFilt.tid);
+  if(fFilt.m)fuel=fuel.filter(f=>f.date?.startsWith(fFilt.m));
+  if(fFilt.s){const s=fFilt.s.toLowerCase();fuel=fuel.filter(f=>((f.location||'')+(f.notes||'')).toLowerCase().includes(s));}
+  const tL=fuel.reduce((s,f)=>s+(+(f.ltrs)||0),0);
+  const tC=fuel.reduce((s,f)=>s+(+(f.totalCost)||0),0);
+  return`
+<div class="fbar">
+  <input type="search" placeholder="Search location..." oninput="fFilt.s=this.value;go('fuel')" value="${H(fFilt.s)}">
+  <select onchange="fFilt.tid=+this.value;go('fuel')"><option value="0">All Trucks</option>${DB.trucks.map(t=>`<option value="${t.id}" ${fFilt.tid===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select>
+  <select onchange="fFilt.m=this.value;go('fuel')"><option value="">All Months</option>${months.map(m=>`<option ${fFilt.m===m?'selected':''}>${m}</option>`).join('')}</select>
+  <button class="btn btn-sm" onclick="fFilt={s:'',m:'',tid:0};go('fuel')">Clear</button>
+</div>
+<div class="g4 mb12">
+  <div class="metric gn"><div class="mlabel">Avg Mileage</div><div class="mval">${avgMil(fFilt.tid)||'—'} ${avgMil(fFilt.tid)?'km/L':''}</div></div>
+  <div class="metric"><div class="mlabel">Total Litres</div><div class="mval">${Math.round(tL)} L</div></div>
+  <div class="metric"><div class="mlabel">Total Fuel Cost</div><div class="mval">${INR(tC)}</div></div>
+  <div class="metric"><div class="mlabel">Entries</div><div class="mval">${fuel.length}</div></div>
+</div>
+<div class="card mb12"><div class="fw6 mb8" style="font-size:13px">Mileage Trend</div>
+  <div class="chart-wrap" style="height:150px"><canvas id="ch-fuel"></canvas></div>
+</div>
+${fuel.length===0?emSt('No fuel entries','Add via Quick Entry or the button above'):`
+<div class="tbl-wrap"><table>
+<thead><tr><th>Date</th><th>Truck</th><th>Odo</th><th>Litres</th><th>₹/L</th><th>Cost</th><th>KM Since Last</th><th>Mileage</th><th>Location</th><th></th></tr></thead>
+<tbody>${fuel.map(f=>`<tr>
+  <td>${fD(f.date)}</td>
+  <td><span class="badge" style="background:${truckColor(f.tid)}18;color:${truckColor(f.tid)};font-size:10px">${H(truckName(f.tid))}</span></td>
+  <td>${f.odo?KM(f.odo):'—'}</td>
+  <td>${(+(f.ltrs||0)).toFixed(1)} L</td>
+  <td>${INR(f.ppl)}</td>
+  <td>${INR(f.totalCost)}</td>
+  <td>${f.kmSince>0?KM(f.kmSince):'—'}</td>
+  <td class="fw6 ${f.mil>0?'col-g':''}">${f.mil>0?f.mil+' km/L':'—'}</td>
+  <td>${H(f.location||'—')}</td>
+  <td style="white-space:nowrap"><button class="btn btn-sm" onclick="openFuelModal(${f.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="delFuel(${f.id})">Del</button></td>
+</tr>`).join('')}</tbody>
+</table></div>`}`;
+}
+function afterFuelChart(){
+  const fills=DB.fuel.filter(f=>+(f.mil)>0).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(-15);
+  const c=document.getElementById('ch-fuel');
+  if(c&&fills.length>1){
+    const ds=DB.trucks.map(tk=>({label:tk.reg,data:fills.filter(f=>f.tid===tk.id).map(f=>({x:fD(f.date),y:+(f.mil)})),borderColor:truckColor(tk.id),backgroundColor:truckColor(tk.id)+'18',tension:.4,pointRadius:3}));
+    CHI.fuel=new Chart(c,{type:'line',data:{labels:fills.map(f=>fD(f.date)),datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{font:{size:11}}}},scales:{x:{ticks:{color:'#999',font:{size:10},maxTicksLimit:8}},y:{ticks:{color:'#999',font:{size:10}}}}}});
+  }
+}
+function openFuelModal(id){
+  EID=id||null;const f=id?DB.fuel.find(x=>x.id===id):{};
+  const prevOdo=DB.fuel.filter(x=>x.id!==id&&+(x.odo)>0).reduce((m,x)=>Math.max(m,+(x.odo)),0);
+  OM(id?'Edit Fuel Entry':'Add Fuel Entry',`
+    <div class="fr2">
+      <div class="fg"><label class="fl">Truck</label><select class="fc" id="mf-tid">${DB.trucks.map(t=>`<option value="${t.id}" ${f.tid===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="mf-date" value="${f.date||today()}"></div>
+    </div>
+    <div class="fr3">
+      <div class="fg"><label class="fl">Odometer <small class="col-3">(Last: ${KM(prevOdo)})</small></label><input type="number" class="fc" id="mf-odo" value="${f.odo||''}" min="0"></div>
+      <div class="fg"><label class="fl">Litres</label><input type="number" class="fc" id="mf-l" value="${f.ltrs||''}" min="0" step="0.01" oninput="mfC()"></div>
+      <div class="fg"><label class="fl">₹/Litre</label><input type="number" class="fc" id="mf-p" value="${f.ppl||''}" min="0" step="0.01" oninput="mfC()"></div>
+    </div>
+    <div class="fr2">
+      <div><label class="fl">Total Cost</label><div class="calc" id="mf-c">${INR(f.totalCost||0)}</div></div>
+      <div class="fg"><label class="fl">Location</label><input type="text" class="fc" id="mf-loc" value="${H(f.location||'')}"></div>
+    </div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="mf-n" rows="2">${H(f.notes||'')}</textarea></div>`,
+  ()=>{
+    const l=nv('mf-l'),p=nv('mf-p'),o=nv('mf-odo'),tid2=+lv('mf-tid');
+    if(l<=0){alert('Enter litres > 0.');return;}
+    if(o>0&&prevOdo>0&&o<prevOdo-100){if(!confirm(`Odometer ${KM(o)} is lower than last reading ${KM(prevOdo)}. Continue?`))return;}
+    const data={date:sv('mf-date'),tid:tid2,ltrs:l,ppl:p,totalCost:l*p,odo:o,location:sv('mf-loc'),notes:sv('mf-n'),mil:0,kmSince:0};
+    if(EID){const i=DB.fuel.findIndex(x=>x.id===EID);if(i>=0)DB.fuel[i]={...DB.fuel[i],...data};log('Fuel Edited',`#${EID}`);}
+    else{DB.fuel.push({id:nid(DB.fuel),...data});log('Fuel Added',`${l}L @ ${INR(p)}/L`);}
+    recalcFuel(tid2);save();CM();go('fuel');
+  });
+}
+function mfC(){const e=document.getElementById('mf-c');if(e)e.textContent=INR(nv('mf-l')*nv('mf-p'));}
+function delFuel(id){
+  if(!confirm('Delete this fuel entry?'))return;
+  const f=DB.fuel.find(x=>x.id===id);const tid2=f?.tid||1;
+  DB.fuel=DB.fuel.filter(x=>x.id!==id);log('Fuel Deleted',`#${id}`);recalcFuel(tid2);save();go('fuel');
+}
+
+// ═══════════════════════════════════════════════════
+// EXPENSES
+// ═══════════════════════════════════════════════════
+const ECATS=['Repairs','Maintenance','Tyre','Parking','Driver Expense','Food','Office','Insurance','Permit','Tax','Loan Payment','Miscellaneous','Other'];
+let eFilt={s:'',m:'',tid:0,cat:''};
+function pgExp(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openExpModal()">+ Add Expense</button>`;
+  const months=[...new Set(DB.expenses.map(e=>e.date?.slice(0,7)).filter(Boolean))].sort().reverse();
+  let exps=DB.expenses.slice().reverse();
+  if(eFilt.tid)exps=exps.filter(e=>e.tid===eFilt.tid);
+  if(eFilt.s){const s=eFilt.s.toLowerCase();exps=exps.filter(e=>((e.desc||'')+(e.cat||'')).toLowerCase().includes(s));}
+  if(eFilt.m)exps=exps.filter(e=>e.date?.startsWith(eFilt.m));
+  if(eFilt.cat)exps=exps.filter(e=>e.cat===eFilt.cat);
+  const total=exps.reduce((s,e)=>s+(+(e.amt)||0),0);
+  return`
+<div class="fbar">
+  <input type="search" placeholder="Search..." oninput="eFilt.s=this.value;go('expenses')" value="${H(eFilt.s)}">
+  <select onchange="eFilt.tid=+this.value;go('expenses')"><option value="0">All Trucks</option>${DB.trucks.map(t=>`<option value="${t.id}" ${eFilt.tid===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select>
+  <select onchange="eFilt.m=this.value;go('expenses')"><option value="">All Months</option>${months.map(m=>`<option ${eFilt.m===m?'selected':''}>${m}</option>`).join('')}</select>
+  <select onchange="eFilt.cat=this.value;go('expenses')"><option value="">All Categories</option>${ECATS.map(c=>`<option ${eFilt.cat===c?'selected':''}>${c}</option>`).join('')}</select>
+  <button class="btn btn-sm" onclick="eFilt={s:'',m:'',tid:0,cat:''};go('expenses')">Clear</button>
+</div>
+<div class="metric mb12" style="max-width:200px"><div class="mlabel">Total Shown</div><div class="mval">${INR(total)}</div></div>
+${exps.length===0?emSt('No expenses','Add standalone expenses not linked to trips'):`
+<div class="tbl-wrap"><table>
+<thead><tr><th>Date</th><th>Truck</th><th>Category</th><th>Description</th><th>Amount</th><th></th></tr></thead>
+<tbody>${exps.map(e=>`<tr>
+  <td>${fD(e.date)}</td>
+  <td><span class="badge" style="background:${truckColor(e.tid)}18;color:${truckColor(e.tid)};font-size:10px">${H(truckName(e.tid))}</span></td>
+  <td><span class="badge b-gr">${H(e.cat)}</span></td>
+  <td>${H(e.desc||'—')}</td>
+  <td class="tr fw6">${INR(e.amt)}</td>
+  <td style="white-space:nowrap"><button class="btn btn-sm" onclick="openExpModal(${e.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="delExp(${e.id})">Del</button></td>
+</tr>`).join('')}</tbody>
+</table></div>`}`;
+}
+function openExpModal(id){
+  EID=id||null;const e=id?DB.expenses.find(x=>x.id===id):{};
+  OM(id?'Edit Expense':'Add Expense',`
+    <div class="fr2">
+      <div class="fg"><label class="fl">Truck</label><select class="fc" id="me-tid">${DB.trucks.map(t=>`<option value="${t.id}" ${e.tid===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="me-date" value="${e.date||today()}"></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Category</label><select class="fc" id="me-cat">${ECATS.map(c=>`<option ${e.cat===c?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Amount (₹) <span class="req">*</span></label><input type="number" class="fc" id="me-amt" value="${e.amt||0}" min="0"></div>
+    </div>
+    <div class="fg"><label class="fl">Description</label><input type="text" class="fc" id="me-desc" value="${H(e.desc||'')}"></div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="me-n" rows="2">${H(e.notes||'')}</textarea></div>`,
+  ()=>{
+    const amt=nv('me-amt');if(amt<0){alert('Amount cannot be negative.');return;}
+    const data={date:sv('me-date'),tid:+lv('me-tid'),cat:lv('me-cat'),desc:sv('me-desc'),amt,notes:sv('me-n')};
+    if(EID){const i=DB.expenses.findIndex(x=>x.id===EID);if(i>=0)DB.expenses[i]={...DB.expenses[i],...data};log('Expense Edited',`#${EID}`);}
+    else{DB.expenses.push({id:nid(DB.expenses),...data});log('Expense Added',`${data.cat}: ${INR(amt)}`);}
+    save();CM();go('expenses');
+  });
+}
+function delExp(id){if(!confirm('Delete this expense?'))return;DB.expenses=DB.expenses.filter(x=>x.id!==id);log('Expense Deleted',`#${id}`);save();go('expenses');}
+
+// ═══════════════════════════════════════════════════
+// RECEIVABLES
+// ═══════════════════════════════════════════════════
+function pgRecv(){
+  const pend=DB.trips.filter(t=>t.payStatus!=='Paid');
+  const totPend=DB.trips.reduce((s,t)=>s+(+(t.pending)||0),0);
+  const totInc=DB.trips.reduce((s,t)=>s+(+(t.income)||0),0);
+  const totRecv=DB.trips.reduce((s,t)=>s+(+(t.recv)||0),0);
+  return`
+<div class="g3 mb16">
+  <div class="metric"><div class="mlabel">Total Freight</div><div class="mval">${INR(totInc)}</div></div>
+  <div class="metric gn"><div class="mlabel">Total Received</div><div class="mval">${INR(totRecv)}</div></div>
+  <div class="metric ${totPend>0?'rd':'gn'}"><div class="mlabel">Total Pending</div><div class="mval">${INR(totPend)}</div></div>
+</div>
+${pend.length===0?'<div class="alert al-gn">✓ All payments received! No outstanding receivables.</div>':`
+<div class="tbl-wrap"><table>
+<thead><tr><th>#</th><th>Date</th><th>Truck</th><th>Route</th><th>Broker</th><th>Freight</th><th>Received</th><th>Pending</th><th>Status</th><th></th></tr></thead>
+<tbody>${pend.slice().reverse().map(t=>`<tr>
+  <td class="col-3">${t.id}</td>
+  <td>${fD(t.date)}</td>
+  <td><span class="badge" style="background:${truckColor(t.tid)}18;color:${truckColor(t.tid)};font-size:10px">${H(truckName(t.tid))}</span></td>
+  <td style="white-space:nowrap">${H(t.from||'?')}→${H(t.to||'?')}</td>
+  <td>${H(t.broker||'—')}</td>
+  <td class="tr">${INR(t.income)}</td>
+  <td class="tr">${INR(t.recv||0)}</td>
+  <td class="tr fw6 col-r">${INR(t.pending||0)}</td>
+  <td><span class="badge ${t.payStatus==='Partial'?'b-am':'b-rd'}">${t.payStatus||'Pending'}</span></td>
+  <td><button class="btn btn-sm btn-success" onclick="openPayModal(${t.id})">Collect ₹</button></td>
+</tr>`).join('')}</tbody>
+</table></div>`}`;
+}
+
+// ═══════════════════════════════════════════════════
+// ROUTES
+// ═══════════════════════════════════════════════════
+function pgRoutes(){
+  const routes={};
+  DB.trips.forEach(t=>{
+    const key=`${t.from||'?'}→${t.to||'?'}`;
+    if(!routes[key])routes[key]={route:key,trips:0,inc:0,toll:0,fuel:0,other:0,km:0};
+    const r=routes[key];const c=calcTrip(t);
+    r.trips++;r.inc+=c.income;r.toll+=c.toll;r.fuel+=c.fuel;r.other+=c.load+c.unload+c.other;r.km+=+(t.km)||0;
+  });
+  const arr=Object.values(routes).map(r=>({...r,exp:r.toll+r.fuel+r.other,profit:r.inc-r.toll-r.fuel-r.other})).sort((a,b)=>b.profit-a.profit);
+  if(!arr.length)return emSt('No routes yet','Routes appear automatically as you add trips');
+  return`<div class="tbl-wrap"><table>
+<thead><tr><th>Route</th><th>Trips</th><th>Income</th><th>Fuel</th><th>Toll</th><th>Other</th><th>Total Exp</th><th>Net Profit</th><th>Profit/Trip</th><th>Total KM</th></tr></thead>
+<tbody>${arr.map(r=>`<tr>
+  <td class="fw6">${H(r.route)}</td><td class="tc">${r.trips}</td>
+  <td class="tr">${INR(r.inc)}</td><td class="tr">${INR(r.fuel)}</td>
+  <td class="tr">${INR(r.toll)}</td><td class="tr">${INR(r.other)}</td>
+  <td class="tr">${INR(r.exp)}</td>
+  <td class="tr fw6" style="color:${r.profit>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(r.profit)}</td>
+  <td class="tr">${INR(r.profit/r.trips)}</td>
+  <td>${KM(r.km)}</td>
+</tr>`).join('')}</tbody>
+</table></div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// FLEET OVERVIEW
+// ═══════════════════════════════════════════════════
+function pgFleet(){
+  const now2=new Date();const y=now2.getFullYear();const m=now2.getMonth();
+  return`
+<div class="ph"><div><h2>Fleet Overview</h2><p>All trucks compared side by side — current month</p></div></div>
+<div class="tbl-wrap mb16"><table>
+<thead><tr><th>KPI</th>${DB.trucks.map(t=>`<th>${H(t.reg)}</th>`).join('')}<th>Combined</th></tr></thead>
+<tbody>${[
+  ['Status',...DB.trucks.map(t=>`<span class="badge ${t.status==='Active'?'b-gn':'b-gr'}">${H(t.status)}</span>`),'—'],
+  ['This Month Income',...DB.trucks.map(t=>INR(mStats(t.id,y,m).inc)),INR(DB.trucks.reduce((s,t)=>s+mStats(t.id,y,m).inc,0))],
+  ['This Month Expenses',...DB.trucks.map(t=>INR(mStats(t.id,y,m).exp)),INR(DB.trucks.reduce((s,t)=>s+mStats(t.id,y,m).exp,0))],
+  ['Net Profit',...DB.trucks.map(t=>`<span style="color:${mStats(t.id,y,m).net>=0?'var(--greentxt)':'var(--redtxt)'};font-weight:600">${INR(mStats(t.id,y,m).net)}</span>`),`<span style="color:${DB.trucks.reduce((s,t)=>s+mStats(t.id,y,m).net,0)>=0?'var(--greentxt)':'var(--redtxt)'};font-weight:700">${INR(DB.trucks.reduce((s,t)=>s+mStats(t.id,y,m).net,0))}</span>`],
+  ['Trips',...DB.trucks.map(t=>mStats(t.id,y,m).trips),DB.trucks.reduce((s,t)=>s+mStats(t.id,y,m).trips,0)],
+  ['Total KM',...DB.trucks.map(t=>KM(mStats(t.id,y,m).km)),KM(DB.trucks.reduce((s,t)=>s+mStats(t.id,y,m).km,0))],
+  ['Avg Mileage',...DB.trucks.map(t=>avgMil(t.id)?avgMil(t.id)+' km/L':'—'),'—'],
+  ['Odometer',...DB.trucks.map(t=>KM(odo(t.id))),'—'],
+  ['Pending Receivables',...DB.trucks.map(t=>INR(allStats(t.id).pend)),INR(allStats(0).pend)],
+  ['Active Loans',...DB.trucks.map(t=>INR(allStats(t.id).loans)),INR(allStats(0).loans)],
+].map(row=>`<tr><td class="fw6">${row[0]}</td>${row.slice(1).map((v,i)=>`<td ${i===DB.trucks.length?'style="font-weight:600;background:#f9f8f5"':''}>${v}</td>`).join('')}</tr>`).join('')}
+</tbody></table></div>
+<div class="g2">
+  ${DB.trucks.map(t=>{
+    const s=mStats(t.id,y,m);const a=allStats(t.id);const o2=odo(t.id);
+    const maintDue=DB.maint.filter(m2=>m2.tid===t.id&&m2.lastKm>0&&(m2.lastKm+m2.kmi-o2)<5000).length;
+    const docExpiring=DB.docs.filter(d=>d.tid===t.id&&d.expiry&&dDiff(d.expiry)!==null&&dDiff(d.expiry)<30).length;
+    return`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div><div class="fw7" style="font-size:15px">${H(t.reg)}</div><div class="fs11 col-3">${H(t.make)} ${H(t.type)}</div></div>
+        <span class="badge ${t.status==='Active'?'b-gn':'b-gr'}">${H(t.status)}</span>
+      </div>
+      <div class="g2 mb12">
+        <div class="metric"><div class="mlabel">This Month</div><div class="mval">${INR(s.inc)}</div></div>
+        <div class="metric ${s.net>=0?'gn':'rd'}"><div class="mlabel">Net Profit</div><div class="mval">${INR(s.net)}</div></div>
+        <div class="metric"><div class="mlabel">Trips</div><div class="mval">${s.trips}</div></div>
+        <div class="metric ${avgMil(t.id)>0?'gn':''}"><div class="mlabel">Mileage</div><div class="mval">${avgMil(t.id)||'—'} ${avgMil(t.id)?'km/L':''}</div></div>
+      </div>
+      ${maintDue>0?`<div class="alert al-am mb8">⚠️ ${maintDue} maintenance item${maintDue>1?'s':''} due soon</div>`:''}
+      ${docExpiring>0?`<div class="alert al-rd mb8">🚨 ${docExpiring} document${docExpiring>1?'s':''} expiring soon</div>`:''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-primary" onclick="qTid=${t.id};go('quick')">+ Trip</button>
+        <button class="btn btn-sm" onclick="tF.tid=${t.id};go('trips')">View Trips</button>
+        <button class="btn btn-sm" onclick="go('maint')">Maintenance</button>
+      </div>
+    </div>`;
+  }).join('')}
+</div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// DRIVERS
+// ═══════════════════════════════════════════════════
+function pgDrivers(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openDriverModal()">+ Add Driver</button>`;
+  if(!DB.drivers.length)return emSt('No drivers added','Add drivers to assign them to trips');
+  return`<div class="tbl-wrap"><table>
+<thead><tr><th>Name</th><th>Phone</th><th>Assigned Truck</th><th>Joined</th><th>Salary/Month</th><th>Advance</th><th>Repaid</th><th>Outstanding</th><th>Trips</th><th></th></tr></thead>
+<tbody>${DB.drivers.map(d=>{
+  const trips=DB.trips.filter(t=>t.driver===d.name).length;
+  const out=Math.max(0,(+(d.adv)||0)-(+(d.advR)||0));
+  return`<tr>
+    <td class="fw6">${H(d.name)}</td><td>${H(d.phone||'—')}</td>
+    <td>${d.truckId?truckName(d.truckId):'—'}</td>
+    <td>${d.join?fD(d.join):'—'}</td>
+    <td class="tr">${INR(d.salary||0)}</td>
+    <td class="tr">${INR(d.adv||0)}</td>
+    <td class="tr">${INR(d.advR||0)}</td>
+    <td class="tr" style="color:${out>0?'var(--ambertxt)':'inherit'}">${INR(out)}</td>
+    <td class="tc">${trips}</td>
+    <td style="white-space:nowrap"><button class="btn btn-sm" onclick="openDriverModal(${d.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="delDriver(${d.id})">Del</button></td>
+  </tr>`;}).join('')}</tbody>
+</table></div>`;
+}
+function openDriverModal(id){
+  EID=id||null;const d=id?DB.drivers.find(x=>x.id===id):{};
+  OM(id?'Edit Driver':'Add Driver',`
+    <div class="fr2">
+      <div class="fg"><label class="fl">Name <span class="req">*</span></label><input type="text" class="fc" id="dr-n" value="${H(d.name||'')}"></div>
+      <div class="fg"><label class="fl">Phone</label><input type="text" class="fc" id="dr-ph" value="${H(d.phone||'')}"></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Assigned Truck</label><select class="fc" id="dr-tk"><option value="">Not assigned</option>${DB.trucks.map(t=>`<option value="${t.id}" ${d.truckId===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Joining Date</label><input type="date" class="fc" id="dr-j" value="${d.join||''}"></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Monthly Salary (₹)</label><input type="number" class="fc" id="dr-s" value="${d.salary||0}" min="0"></div>
+      <div class="fg"><label class="fl">License Number</label><input type="text" class="fc" id="dr-lic" value="${H(d.license||'')}"></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Advance Taken (₹)</label><input type="number" class="fc" id="dr-a" value="${d.adv||0}" min="0"></div>
+      <div class="fg"><label class="fl">Advance Repaid (₹)</label><input type="number" class="fc" id="dr-ar" value="${d.advR||0}" min="0"></div>
+    </div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="dr-notes" rows="2">${H(d.notes||'')}</textarea></div>`,
+  ()=>{
+    const name=sv('dr-n');if(!name){alert('Enter driver name.');return;}
+    const data={name,phone:sv('dr-ph'),truckId:+lv('dr-tk')||null,join:sv('dr-j'),salary:nv('dr-s'),license:sv('dr-lic'),adv:nv('dr-a'),advR:nv('dr-ar'),notes:sv('dr-notes')};
+    if(EID){const i=DB.drivers.findIndex(x=>x.id===EID);if(i>=0)DB.drivers[i]={...DB.drivers[i],...data};log('Driver Updated',name);}
+    else{DB.drivers.push({id:nid(DB.drivers),...data});log('Driver Added',name);}
+    save();CM();go('drivers');
+  });
+}
+function delDriver(id){if(!confirm('Delete this driver?'))return;DB.drivers=DB.drivers.filter(x=>x.id!==id);save();go('drivers');}
+
+// ═══════════════════════════════════════════════════
+// BROKERS
+// ═══════════════════════════════════════════════════
+function pgBrokers(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openBrokerModal()">+ Add Broker</button>`;
+  const stats=DB.brokers.map(b=>{
+    const k=normB(b.name);
+    const trips=DB.trips.filter(t=>normB(t.broker)===k);
+    const inc=trips.reduce((s,t)=>s+(+(t.income)||0),0);
+    const recv=trips.reduce((s,t)=>s+(+(t.recv)||0),0);
+    return{...b,trips:trips.length,inc,recv,pend:inc-recv,avg:trips.length?inc/trips.length:0};
+  }).sort((a,b)=>b.inc-a.inc);
+  if(!stats.length)return emSt('No brokers','Brokers are auto-created when you enter a name in a trip');
+  return`<div class="tbl-wrap"><table>
+<thead><tr><th>Name</th><th>City</th><th>Phone</th><th>Trips</th><th>Total Freight</th><th>Received</th><th>Pending</th><th>Avg/Trip</th><th></th></tr></thead>
+<tbody>${stats.map(b=>`<tr>
+  <td class="fw6">${H(b.name)}</td><td>${H(b.city||'—')}</td><td>${H(b.phone||'—')}</td>
+  <td class="tc">${b.trips}</td>
+  <td class="tr">${INR(b.inc)}</td>
+  <td class="tr">${INR(b.recv)}</td>
+  <td class="tr" style="color:${b.pend>0?'var(--ambertxt)':'inherit'}">${INR(b.pend)}</td>
+  <td class="tr">${INR(b.avg)}</td>
+  <td style="white-space:nowrap"><button class="btn btn-sm" onclick="openBrokerModal(${b.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="delBroker(${b.id})">Del</button></td>
+</tr>`).join('')}</tbody>
+</table></div>`;
+}
+function openBrokerModal(id){
+  EID=id||null;const b=id?DB.brokers.find(x=>x.id===id):{};
+  OM(id?'Edit Broker':'Add Broker',`
+    <div class="fg"><label class="fl">Name <span class="req">*</span></label><input type="text" class="fc" id="mb-n" value="${H(b.name||'')}"></div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Phone</label><input type="text" class="fc" id="mb-ph" value="${H(b.phone||'')}"></div>
+      <div class="fg"><label class="fl">City</label><input type="text" class="fc" id="mb-c" value="${H(b.city||'')}"></div>
+    </div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="mb-notes" rows="2">${H(b.notes||'')}</textarea></div>`,
+  ()=>{
+    const name=sv('mb-n');if(!name){alert('Enter broker name.');return;}
+    const data={name,phone:sv('mb-ph'),city:sv('mb-c'),notes:sv('mb-notes')};
+    if(EID){const i=DB.brokers.findIndex(x=>x.id===EID);if(i>=0)DB.brokers[i]={...DB.brokers[i],...data};}
+    else DB.brokers.push({id:nid(DB.brokers),...data});
+    save();CM();go('brokers');
+  });
+}
+function delBroker(id){if(!confirm('Delete this broker? Their trips will NOT be deleted.'))return;DB.brokers=DB.brokers.filter(x=>x.id!==id);save();go('brokers');}
+
+// ═══════════════════════════════════════════════════
+// MAINTENANCE
+// ═══════════════════════════════════════════════════
+let mTid=1;
+function pgMaint(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openMaintModal()">+ Add Service Item</button>`;
+  const truckTabs=`<div class="truck-tabs mb12">${DB.trucks.map(t=>`<button class="truck-tab${mTid===t.id?' active':''}" onclick="mTid=${t.id};go('maint')">${H(t.reg)}</button>`).join('')}</div>`;
+  const curOdo=odo(mTid);
+  const items=DB.maint.filter(m=>m.tid===mTid);
+  const overdue=items.filter(m=>m.lastKm>0&&(m.lastKm+m.kmi-curOdo)<=0).length;
+  const dueSoon=items.filter(m=>m.lastKm>0&&(m.lastKm+m.kmi-curOdo)>0&&(m.lastKm+m.kmi-curOdo)<2000).length;
+  return`
+${truckTabs}
+<div class="alert al-bl mb12">Odometer: <strong>${KM(curOdo)}</strong> — ${overdue>0?`<span class="col-r fw6">${overdue} OVERDUE</span> · `:''}${dueSoon>0?`<span class="col-a fw6">${dueSoon} due soon</span> · `:''}<span class="col-g">Last updated from trips & fuel</span></div>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Service Item</th><th>Interval</th><th>Last KM</th><th>Last Date</th><th>Garage</th><th>Next Due</th><th>KM Left</th><th>Status</th><th>Last Cost</th><th></th></tr></thead>
+<tbody>${items.map(m=>{
+  const next=m.lastKm>0?m.lastKm+m.kmi:null;
+  const rem=next!==null?next-curOdo:null;
+  const st=m.lastKm===0?'NOT SET':rem<=0?'OVERDUE':rem<2000?'DUE SOON':'OK';
+  return`<tr>
+    <td class="fw6">${H(m.item)}</td>
+    <td>${KM(m.kmi)}</td>
+    <td>${m.lastKm>0?KM(m.lastKm):'—'}</td>
+    <td>${m.lastDate?fD(m.lastDate):'—'}</td>
+    <td>${H(m.garage||'—')}</td>
+    <td>${next?KM(next):'—'}</td>
+    <td>${rem!==null?KM(Math.max(0,rem)):'—'}</td>
+    <td><span class="badge ${st==='OVERDUE'?'b-rd':st==='DUE SOON'?'b-am':st==='NOT SET'?'b-gr':'b-gn'}">${st}</span></td>
+    <td class="tr">${m.cost>0?INR(m.cost):'—'}</td>
+    <td><button class="btn btn-sm" onclick="openMaintModal(${m.id})">Update</button></td>
+  </tr>`;}).join('')}</tbody>
+</table></div>`;
+}
+function openMaintModal(id){
+  EID=id||null;const m=id?DB.maint.find(x=>x.id===id):{};
+  OM(id?`Update: ${H(m.item||'')}`: 'Add Service Item',`
+    <div class="fr2">
+      <div class="fg"><label class="fl">Truck</label><select class="fc" id="mm-tid">${DB.trucks.map(t=>`<option value="${t.id}" ${(m.tid||mTid)===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Service Item <span class="req">*</span></label><input type="text" class="fc" id="mm-item" value="${H(m.item||'')}"></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Last Done KM</label><input type="number" class="fc" id="mm-km" value="${m.lastKm||0}" min="0"></div>
+      <div class="fg"><label class="fl">Last Done Date</label><input type="date" class="fc" id="mm-date" value="${m.lastDate||today()}"></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Interval (KM)</label><input type="number" class="fc" id="mm-int" value="${m.kmi||10000}" min="500"></div>
+      <div class="fg"><label class="fl">Cost (₹)</label><input type="number" class="fc" id="mm-cost" value="${m.cost||0}" min="0"></div>
+    </div>
+    <div class="fg"><label class="fl">Garage / Service Centre</label><input type="text" class="fc" id="mm-g" value="${H(m.garage||'')}"></div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="mm-n" rows="2">${H(m.notes||'')}</textarea></div>`,
+  ()=>{
+    const item=sv('mm-item');if(!item){alert('Enter service item name.');return;}
+    const data={tid:+lv('mm-tid'),item,lastKm:nv('mm-km'),lastDate:sv('mm-date'),kmi:nv('mm-int')||10000,cost:nv('mm-cost'),garage:sv('mm-g'),notes:sv('mm-n')};
+    if(EID){const i=DB.maint.findIndex(x=>x.id===EID);if(i>=0)DB.maint[i]={...DB.maint[i],...data};log('Maintenance Updated',item);}
+    else{DB.maint.push({id:nid(DB.maint),...data});log('Maintenance Added',item);}
+    save();CM();go('maint');
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// DOCUMENTS
+// ═══════════════════════════════════════════════════
+let dTid=1;
+function pgDocs(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openDocModal()">+ Add Document</button>`;
+  const truckTabs=`<div class="truck-tabs mb12">${DB.trucks.map(t=>`<button class="truck-tab${dTid===t.id?' active':''}" onclick="dTid=${t.id};go('docs')">${H(t.reg)}</button>`).join('')}</div>`;
+  const docs=DB.docs.filter(d=>d.tid===dTid);
+  const expired=docs.filter(d=>d.expiry&&dDiff(d.expiry)<0).length;
+  const expiring=docs.filter(d=>d.expiry&&dDiff(d.expiry)>=0&&dDiff(d.expiry)<=30).length;
+  return`
+${truckTabs}
+${expired>0?`<div class="alert al-rd mb12">🚨 ${expired} document${expired>1?'s':''} EXPIRED — renew immediately!</div>`:''}
+${expiring>0?`<div class="alert al-am mb12">⚠️ ${expiring} document${expiring>1?'s':''} expiring within 30 days</div>`:''}
+<div class="tbl-wrap"><table>
+<thead><tr><th>Document</th><th>Number</th><th>Issue Date</th><th>Expiry Date</th><th>Days Left</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+<tbody>${docs.map(d=>{
+  const days=dDiff(d.expiry);
+  const st=!d.expiry?null:days<0?'EXPIRED':days<=30?'EXPIRING SOON':'VALID';
+  return`<tr>
+    <td class="fw6">${H(d.name)}</td>
+    <td>${H(d.no||'—')}</td>
+    <td>${d.issue?fD(d.issue):'—'}</td>
+    <td>${d.expiry?fD(d.expiry):'—'}</td>
+    <td class="tc">${days!==null?days:'—'}</td>
+    <td>${st?`<span class="badge ${st==='VALID'?'b-gn':st==='EXPIRING SOON'?'b-am':'b-rd'}">${st}</span>`:'<span class="badge b-gr">NO DATE</span>'}</td>
+    <td>${H(d.notes||'—')}</td>
+    <td><button class="btn btn-sm" onclick="openDocModal(${d.id})">Edit</button> <button class="btn btn-sm btn-danger" onclick="delDoc(${d.id})">Del</button></td>
+  </tr>`;}).join('')}</tbody>
+</table></div>`;
+}
+function openDocModal(id){
+  EID=id||null;const d=id?DB.docs.find(x=>x.id===id):{};
+  OM(id?'Edit Document':'Add Document',`
+    <div class="fr2">
+      <div class="fg"><label class="fl">Truck</label><select class="fc" id="md-tid">${DB.trucks.map(t=>`<option value="${t.id}" ${(d.tid||dTid)===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Document Name <span class="req">*</span></label><input type="text" class="fc" id="md-n" value="${H(d.name||'')}"></div>
+    </div>
+    <div class="fg"><label class="fl">Document Number</label><input type="text" class="fc" id="md-no" value="${H(d.no||'')}"></div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Issue Date</label><input type="date" class="fc" id="md-i" value="${d.issue||''}"></div>
+      <div class="fg"><label class="fl">Expiry Date <span class="req">*</span></label><input type="date" class="fc" id="md-e" value="${d.expiry||''}"></div>
+    </div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="md-notes" rows="2">${H(d.notes||'')}</textarea></div>`,
+  ()=>{
+    const name=sv('md-n');if(!name){alert('Enter document name.');return;}
+    const data={tid:+lv('md-tid'),name,no:sv('md-no'),issue:sv('md-i'),expiry:sv('md-e'),notes:sv('md-notes')};
+    if(EID){const i=DB.docs.findIndex(x=>x.id===EID);if(i>=0)DB.docs[i]={...DB.docs[i],...data};}
+    else DB.docs.push({id:nid(DB.docs),...data});
+    log('Document Updated',name);save();CM();go('docs');
+  });
+}
+function delDoc(id){if(!confirm('Delete this document?'))return;DB.docs=DB.docs.filter(x=>x.id!==id);save();go('docs');}
+
+// ═══════════════════════════════════════════════════
+// TYRES
+// ═══════════════════════════════════════════════════
+let tyTid=1;
+function pgTyres(){
+  const truckTabs=`<div class="truck-tabs mb12">${DB.trucks.map(t=>`<button class="truck-tab${tyTid===t.id?' active':''}" onclick="tyTid=${t.id};go('tyres')">${H(t.reg)}</button>`).join('')}</div>`;
+  const curOdo=odo(tyTid);
+  const tyres2=DB.tyres.filter(t=>t.tid===tyTid);
+  const rows=tyres2.map(t=>{
+    const used=t.rem>0?t.rem-t.fit:(curOdo>t.fit&&t.fit>0?curOdo-t.fit:0);
+    const pct=t.exp>0?Math.round(used/t.exp*100):0;
+    const cls=pct>=85?'rd':pct>=70?'am':'gn';
+    const cpr=t.cost>0&&t.exp>0?(t.cost/t.exp).toFixed(2):'—';
+    return`<tr>
+      <td class="fw6">${H(t.pos)}</td>
+      <td>${H(t.brand||'—')}</td>
+      <td><span class="badge ${t.status==='In Use'?'b-gn':t.status==='Empty'?'b-gr':'b-am'}">${H(t.status||'Empty')}</span></td>
+      <td class="tr">${INR(t.cost)}</td>
+      <td>${KM(used)}</td>
+      <td>${KM(t.exp)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="pw" style="width:72px"><div class="pf ${cls}" style="width:${Math.min(pct,100)}%"></div></div>
+          <span style="font-size:11px;font-weight:600">${pct}%</span>
+        </div>
+      </td>
+      <td><span class="badge b-${cls}">${pct>=85?'REPLACE':pct>=70?'WATCH':'OK'}</span></td>
+      <td>${cpr!=='—'?'₹'+cpr+'/km':'—'}</td>
+      <td><button class="btn btn-sm" onclick="openTyreModal(${t.id})">Edit</button></td>
+    </tr>`;
+  }).join('');
+  const totCost=tyres2.reduce((s,t)=>s+(+(t.cost)||0),0);
+  const totExp=tyres2.reduce((s,t)=>s+(+(t.exp)||0),0);
+  const costPKM=totExp>0?(totCost/totExp).toFixed(3):'—';
+  return`
+${truckTabs}
+<div class="alert al-bl mb12">Odometer: <strong>${KM(curOdo)}</strong> · Fleet tyre cost/km: <strong>${costPKM!=='—'?'₹'+costPKM:'—'}</strong> · Alert at 85% life used</div>
+<div class="tbl-wrap"><table>
+<thead><tr><th>Position</th><th>Brand</th><th>Status</th><th>Cost</th><th>KM Used</th><th>Expected Life</th><th>Life Used</th><th>Alert</th><th>₹/KM</th><th></th></tr></thead>
+<tbody>${rows}</tbody>
+</table></div>`;
+}
+function openTyreModal(id){
+  EID=id;const t=DB.tyres.find(x=>x.id===id)||{};
+  OM(`Edit Tyre — ${H(t.pos)}`,`
+    <div class="fr2">
+      <div class="fg"><label class="fl">Brand</label><input type="text" class="fc" id="ty-b" value="${H(t.brand||'')}"></div>
+      <div class="fg"><label class="fl">Status</label><select class="fc" id="ty-st">${['Empty','New','In Use','Retreaded','Removed'].map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Purchase Cost (₹)</label><input type="number" class="fc" id="ty-c" value="${t.cost||0}" min="0"></div>
+      <div class="fg"><label class="fl">Expected Life (KM)</label><input type="number" class="fc" id="ty-e" value="${t.exp||100000}"></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">KM at Fitment</label><input type="number" class="fc" id="ty-f" value="${t.fit||0}" min="0"></div>
+      <div class="fg"><label class="fl">KM at Removal (0=still active)</label><input type="number" class="fc" id="ty-r" value="${t.rem||0}" min="0"></div>
+    </div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="ty-n" rows="2">${H(t.notes||'')}</textarea></div>`,
+  ()=>{
+    const data={brand:sv('ty-b'),status:lv('ty-st'),cost:nv('ty-c'),exp:nv('ty-e')||100000,fit:nv('ty-f'),rem:nv('ty-r'),notes:sv('ty-n')};
+    const i=DB.tyres.findIndex(x=>x.id===EID);if(i>=0)DB.tyres[i]={...DB.tyres[i],...data};
+    log('Tyre Updated',t.pos);save();CM();go('tyres');
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// LOANS
+// ═══════════════════════════════════════════════════
+function pgLoans(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openLoanModal()">+ Add Loan</button>`;
+  const totOut=DB.loans.filter(l=>l.status==='Active').reduce((s,l)=>s+(+(l.rem)||0),0);
+  return`
+<div class="metric mb16" style="max-width:220px"><div class="mlabel">Total Outstanding</div><div class="mval col-r">${INR(totOut)}</div></div>
+${DB.loans.length===0?emSt('No loans','Add loans or borrowed amounts to track here'):`
+${DB.loans.map(l=>{
+  const pct=l.amount>0?Math.min(100,Math.round((+(l.repaid)||0)/+(l.amount)*100)):0;
+  return`<div class="card mb12">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px">
+      <div>
+        <div class="fw7" style="font-size:15px">${H(l.purpose||'Loan')}</div>
+        <div class="fs11 col-3">${H(l.lender||'—')} · ${fD(l.date)} · ${truckName(l.tid||1)}</div>
+      </div>
+      <span class="badge ${l.status==='Active'?'b-am':'b-gn'}">${l.status}</span>
+    </div>
+    <div class="g3 mb12">
+      <div class="metric"><div class="mlabel">Borrowed</div><div class="mval">${INR(l.amount)}</div></div>
+      <div class="metric gn"><div class="mlabel">Repaid</div><div class="mval">${INR(l.repaid||0)}</div></div>
+      <div class="metric ${+(l.rem)>0?'rd':''}"><div class="mlabel">Remaining</div><div class="mval">${INR(l.rem||0)}</div></div>
+    </div>
+    <div class="pw mb8"><div class="pf gn" style="width:${pct}%"></div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="fs11 col-3">${pct}% repaid</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-success" onclick="openLoanPayModal(${l.id})">+ Repayment</button>
+        <button class="btn btn-sm" onclick="openLoanModal(${l.id})">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="delLoan(${l.id})">Del</button>
+      </div>
+    </div>
+  </div>`;}).join('')}`}`;
+}
+function openLoanModal(id){
+  EID=id||null;const l=id?DB.loans.find(x=>x.id===id):{};
+  OM(id?'Edit Loan':'Add Loan',`
+    <div class="fr2">
+      <div class="fg"><label class="fl">Truck</label><select class="fc" id="ml-tid">${DB.trucks.map(t=>`<option value="${t.id}" ${l.tid===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="ml-d" value="${l.date||today()}"></div>
+    </div>
+    <div class="fg"><label class="fl">Lender / Person</label><input type="text" class="fc" id="ml-lender" value="${H(l.lender||'')}"></div>
+    <div class="fg"><label class="fl">Purpose</label><input type="text" class="fc" id="ml-p" value="${H(l.purpose||'')}"></div>
+    <div class="fg"><label class="fl">Amount Borrowed (₹) <span class="req">*</span></label><input type="number" class="fc" id="ml-a" value="${l.amount||0}" min="0"></div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="ml-n" rows="2">${H(l.notes||'')}</textarea></div>`,
+  ()=>{
+    const amt=nv('ml-a');if(amt<=0){alert('Enter loan amount.');return;}
+    const existing=EID?DB.loans.find(x=>x.id===EID):{};
+    const repaid=+(existing.repaid)||0;
+    const data={tid:+lv('ml-tid'),date:sv('ml-d'),lender:sv('ml-lender'),purpose:sv('ml-p'),amount:amt,repaid,rem:Math.max(0,amt-repaid),status:amt-repaid>0?'Active':'Closed',notes:sv('ml-n')};
+    if(EID){const i=DB.loans.findIndex(x=>x.id===EID);if(i>=0)DB.loans[i]={...DB.loans[i],...data};log('Loan Edited',`#${EID}`);}
+    else{DB.loans.push({id:nid(DB.loans),...data});log('Loan Added',`${data.purpose}: ${INR(amt)}`);}
+    save();CM();go('loans');
+  });
+}
+function openLoanPayModal(lid){
+  const l=DB.loans.find(x=>x.id===lid);if(!l)return;
+  OM('Add Repayment',`
+    <div class="infobox">Loan: ${H(l.purpose||'')} · Remaining: ${INR(l.rem||0)}</div>
+    <div class="fg"><label class="fl">Amount (₹) <span class="req">*</span></label><input type="number" class="fc" id="lp-a" value="0" min="0" max="${l.rem||0}"></div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="lp-d" value="${today()}"></div>
+      <div class="fg"><label class="fl">Method</label><select class="fc" id="lp-m"><option>Cash</option><option>UPI</option><option>Bank Transfer</option></select></div>
+    </div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="lp-n" rows="2"></textarea></div>`,
+  ()=>{
+    const amt=nv('lp-a');
+    if(amt<=0){alert('Enter amount > 0.');return;}
+    if(amt>(+(l.rem)||0)+0.01){alert(`Cannot exceed remaining balance ${INR(l.rem||0)}.`);return;}
+    DB.loanPay.push({id:nid(DB.loanPay),lid,date:sv('lp-d'),amount:amt,method:lv('lp-m'),notes:sv('lp-n')});
+    l.repaid=(+(l.repaid)||0)+amt;l.rem=Math.max(0,+(l.amount)-+(l.repaid));l.status=+(l.rem)<=0?'Closed':'Active';
+    log('Loan Repayment',`${INR(amt)} for loan #${lid}`);save();CM();go('loans');
+  });
+}
+function delLoan(id){if(!confirm('Delete this loan and all its repayments?'))return;DB.loans=DB.loans.filter(x=>x.id!==id);DB.loanPay=DB.loanPay.filter(x=>x.lid!==id);log('Loan Deleted',`#${id}`);save();go('loans');}
+
+// ═══════════════════════════════════════════════════
+// MONTHLY P&L
+// ═══════════════════════════════════════════════════
+let plTid=0,plYear=new Date().getFullYear();
+function pgPL(){
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let ytdInc=0,ytdExp=0,ytdNet=0,ytdKm=0;
+  const curM=new Date().getMonth();
+  for(let i=0;i<=curM;i++){const s=mStats(plTid,plYear,i);ytdInc+=s.inc;ytdExp+=s.exp;ytdNet+=s.net;ytdKm+=s.km;}
+  const rows=MONTHS.map((mn,i)=>{const s=mStats(plTid,plYear,i);return`<tr>
+    <td class="fw6">${mn}</td><td class="tc">${s.trips}</td>
+    <td class="tr">${INR(s.inc)}</td>
+    <td class="tr">${INR(s.fuel)}</td>
+    <td class="tr">${INR(s.toll)}</td>
+    <td class="tr">${INR(s.load+s.addl)}</td>
+    <td class="tr">${INR(s.exp)}</td>
+    <td class="tr fw6" style="color:${s.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(s.net)}</td>
+    <td class="tr">${KM(s.km)}</td>
+  </tr>`;}).join('');
+  return`
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+  <select class="fc" style="width:auto" onchange="plTid=+this.value;go('pl')"><option value="0">All Trucks</option>${DB.trucks.map(t=>`<option value="${t.id}" ${plTid===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select>
+  <select class="fc" style="width:auto" onchange="plYear=+this.value;go('pl')">${[plYear-1,plYear,plYear+1].map(y=>`<option ${plYear===y?'selected':''}>${y}</option>`).join('')}</select>
+  <span class="fs11 col-3">Year ${plYear}</span>
+</div>
+<div class="g4 mb16">
+  <div class="metric"><div class="mlabel">YTD Income</div><div class="mval">${INR(ytdInc)}</div></div>
+  <div class="metric"><div class="mlabel">YTD Expenses</div><div class="mval">${INR(ytdExp)}</div></div>
+  <div class="metric ${ytdNet>=0?'gn':'rd'}"><div class="mlabel">YTD Net Profit</div><div class="mval">${INR(ytdNet)}</div></div>
+  <div class="metric"><div class="mlabel">YTD KM</div><div class="mval">${KM(ytdKm)}</div></div>
+</div>
+<div class="tbl-wrap mb16"><table>
+<thead><tr><th>Month</th><th>Trips</th><th>Income</th><th>Fuel</th><th>Toll</th><th>Other</th><th>Total Exp</th><th>Net Profit</th><th>KM</th></tr></thead>
+<tbody>${rows}</tbody>
+</table></div>
+<div class="card"><div class="fw6 mb8" style="font-size:13px">Monthly Net Profit/Loss — ${plYear}</div>
+  <div class="chart-wrap" style="height:220px"><canvas id="ch-pl"></canvas></div>
+</div>`;
+}
+function afterPL(){
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const profits=MONTHS.map((_,i)=>mStats(plTid,plYear,i).net);
+  const c=document.getElementById('ch-pl');
+  if(c)CHI.pl=new Chart(c,{type:'bar',data:{labels:MONTHS,datasets:[{label:'Net Profit',data:profits,backgroundColor:profits.map(v=>v>=0?'#16a34a':'#dc2626'),borderRadius:3,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#999',font:{size:11}}},y:{ticks:{color:'#999',font:{size:11},callback:v=>'₹'+Math.round(v/1000)+'k'}}}}});
+}
+
+// ═══════════════════════════════════════════════════
+// CASH FLOW
+// ═══════════════════════════════════════════════════
+function pgCF(){
+  const weeks=[];
+  for(let i=11;i>=0;i--){
+    const s=new Date();s.setDate(s.getDate()-i*7);
+    const e=new Date(s);e.setDate(e.getDate()+6);
+    const wt=DB.trips.filter(t=>{const d=new Date(t.date);return d>=s&&d<=e;});
+    const we=DB.expenses.filter(t=>{const d=new Date(t.date);return d>=s&&d<=e;});
+    const inc=wt.reduce((a,t)=>a+(+(t.income)||0),0);
+    const fuel=wt.reduce((a,t)=>a+(+(t.fuelCost)||0),0);
+    const toll=wt.reduce((a,t)=>a+(+(t.toll)||0),0);
+    const other=wt.reduce((a,t)=>a+(+(t.load||0))+(+(t.unload||0))+(+(t.other||0)),0);
+    const exps=we.reduce((a,e)=>a+(+(e.amt||0)),0);
+    const net=inc-fuel-toll-other-exps;
+    weeks.push({label:`W${12-i}`,from:s.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}),inc,fuel,toll,other:other+exps,net,trips:wt.length});
+  }
+  return`
+<div class="tbl-wrap mb16"><table>
+<thead><tr><th>Week</th><th>From</th><th>Trips</th><th>Income</th><th>Fuel</th><th>Toll</th><th>Other</th><th>Net Cash</th></tr></thead>
+<tbody>${weeks.map(w=>`<tr>
+  <td>${w.label}</td><td class="col-3 fs11">${w.from}</td><td class="tc">${w.trips}</td>
+  <td class="tr">${INR(w.inc)}</td><td class="tr">${INR(w.fuel)}</td>
+  <td class="tr">${INR(w.toll)}</td><td class="tr">${INR(w.other)}</td>
+  <td class="tr fw6" style="color:${w.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(w.net)}</td>
+</tr>`).join('')}</tbody>
+</table></div>
+<div class="card"><div class="fw6 mb8" style="font-size:13px">Weekly Cash Flow</div>
+  <div class="chart-wrap" style="height:200px"><canvas id="ch-cf"></canvas></div>
+</div>`;
+}
+function afterCF(){
+  const wk=[];for(let i=11;i>=0;i--){const s=new Date();s.setDate(s.getDate()-i*7);const e=new Date(s);e.setDate(e.getDate()+6);const wt=DB.trips.filter(t=>{const d=new Date(t.date);return d>=s&&d<=e;});const inc=wt.reduce((a,t)=>a+(+(t.income||0)),0);const exp=wt.reduce((a,t)=>a+(+(t.fuelCost||0))+(+(t.toll||0))+(+(t.load||0))+(+(t.unload||0))+(+(t.other||0)),0);wk.push({inc,net:inc-exp});}
+  const c=document.getElementById('ch-cf');
+  if(c)CHI.cf=new Chart(c,{type:'bar',data:{labels:wk.map((_,i)=>`W${i+1}`),datasets:[{label:'Income',data:wk.map(w=>w.inc),backgroundColor:'#2563eb',borderRadius:3,borderSkipped:false},{label:'Net',data:wk.map(w=>w.net),backgroundColor:wk.map(w=>w.net>=0?'#16a34a':'#dc2626'),borderRadius:3,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#999',font:{size:11}}},y:{ticks:{color:'#999',font:{size:11},callback:v=>'₹'+Math.round(v/1000)+'k'}}}}});
+}
+
+// ═══════════════════════════════════════════════════
+// FIXED COSTS & COST PER KM
+// ═══════════════════════════════════════════════════
+let fixTid=1;
+function pgFixed(){
+  const totAnn=DB.fixed.filter(f=>f.tid===fixTid).reduce((s,f)=>s+(+(f.annual)||0),0);
+  const totMon=totAnn/12;
+  const allTrips=DB.trips.filter(t=>t.tid===fixTid);
+  const totKm=allTrips.reduce((s,t)=>s+(+(t.km)||0),0);
+  const totFuel=DB.fuel.filter(f=>f.tid===fixTid).reduce((s,f)=>s+(+(f.totalCost)||0),0);
+  const totFuelL=DB.fuel.filter(f=>f.tid===fixTid).reduce((s,f)=>s+(+(f.ltrs)||0),0);
+  const avgMilT=avgMil(fixTid);
+  const lastPpl=DB.fuel.filter(f=>f.tid===fixTid).sort((a,b)=>new Date(b.date)-new Date(a.date))[0]?.ppl||0;
+  const fuelPKM=totKm>0?totFuel/totKm:0;
+  const tyres2=DB.tyres.filter(t=>t.tid===fixTid);
+  const tyreCostTotal=tyres2.reduce((s,t)=>s+(+(t.cost)||0),0);
+  const tyreExpKm=tyres2.reduce((s,t)=>s+(+(t.exp)||0),0);
+  const tyrePKM=tyreExpKm>0?tyreCostTotal/tyreExpKm:0;
+  const maintCost=DB.maint.filter(m=>m.tid===fixTid).reduce((s,m)=>s+(+(m.cost)||0),0);
+  const maintPKM=totKm>0?maintCost/totKm:0;
+  const driver=DB.drivers.find(d=>d.truckId===fixTid);
+  const driverSalary=+(driver?.salary)||0;
+  const avgMonKm=allTrips.length>0?totKm/(Math.max(1,new Set(allTrips.map(t=>t.date?.slice(0,7))).size)):0;
+  const driverPKM=avgMonKm>0?driverSalary/avgMonKm:0;
+  const totToll=allTrips.reduce((s,t)=>s+(+(t.toll)||0),0);
+  const tollPKM=totKm>0?totToll/totKm:0;
+  const fixedPKM=avgMonKm>0?totMon/avgMonKm:0;
+  const loadPKM=totKm>0?allTrips.reduce((s,t)=>s+(+(t.load||0))+(+(t.unload||0)),0)/totKm:0;
+  const otherPKM=totKm>0?allTrips.reduce((s,t)=>s+(+(t.other||0)),0)/totKm:0;
+  const totalPKM=fuelPKM+tyrePKM+maintPKM+driverPKM+tollPKM+fixedPKM+loadPKM+otherPKM;
+  _totalPKM=totalPKM;
+  const fmt3=v=>v>0?'₹'+v.toFixed(2)+'/km':'—';
+  const hasData=totKm>5000;
+
+  return`
+<div class="truck-tabs mb12">${DB.trucks.map(t=>`<button class="truck-tab${fixTid===t.id?' active':''}" onclick="fixTid=${t.id};go('fixed')">${H(t.reg)}</button>`).join('')}</div>
+
+<div class="g3 mb16">
+  <div class="hmetric hero-indigo" style="grid-column:span 1">
+    <div class="mlabel">Total Cost / KM</div>
+    <div class="mval" style="font-size:32px">${hasData?'₹'+totalPKM.toFixed(2):' —'}</div>
+    <div class="msub">Every km costs you this — ${H(truckName(fixTid))}</div>
+  </div>
+  <div class="hmetric hero-amber">
+    <div class="mlabel">Diesel / KM</div>
+    <div class="mval" style="font-size:26px">${fuelPKM>0?'₹'+fuelPKM.toFixed(2):'—'}</div>
+    <div class="msub">${avgMilT?avgMilT+' km/L avg':'Enter fuel fills'}</div>
+  </div>
+  <div class="hmetric hero-green">
+    <div class="mlabel">Min Rate to Break Even</div>
+    <div class="mval" style="font-size:26px">${hasData?'₹'+totalPKM.toFixed(0)+'/km':'—'}</div>
+    <div class="msub">Charge more than this per km to profit</div>
+  </div>
+</div>
+${!hasData?'<div class="alert al-am mb12">⚠️ Enter at least 5,000 km of trip data, fuel fills, and tyre costs to see accurate per-km breakdown.</div>':''}
+
+${hasData?`
+<div class="card mb16">
+  <div class="fw6 mb12" style="font-size:13px">Cost Per KM Breakdown</div>
+  ${[
+    ['⛽','Diesel / Fuel',fuelPKM,`${totFuelL.toFixed(0)}L total · ${avgMilT||'—'} km/L · ₹${lastPpl||'—'}/L last fill`,'linear-gradient(135deg,#f59e0b,#d97706)'],
+    ['🛞','Tyres',tyrePKM,`${tyres2.length} tyre positions · ₹${tyreCostTotal.toLocaleString('en-IN')} total investment`,'linear-gradient(135deg,#3b82f6,#2563eb)'],
+    ['🔧','Maintenance',maintPKM,`₹${maintCost.toLocaleString('en-IN')} total service cost recorded`,'linear-gradient(135deg,#8b5cf6,#7c3aed)'],
+    ['👤','Driver Salary',driverPKM,`₹${driverSalary.toLocaleString('en-IN')}/month · ${Math.round(avgMonKm).toLocaleString('en-IN')} km/month avg`,'linear-gradient(135deg,#10b981,#0d9488)'],
+    ['🛣️','Toll',tollPKM,`₹${totToll.toLocaleString('en-IN')} total toll paid`,'linear-gradient(135deg,#ef4444,#dc2626)'],
+    ['📋','Fixed Costs',fixedPKM,`₹${totAnn.toLocaleString('en-IN')}/year — insurance, tax, permit`,'linear-gradient(135deg,#6366f1,#4f46e5)'],
+    ['📦','Loading/Unloading',loadPKM,'Loading and unloading charges','linear-gradient(135deg,#f97316,#ea580c)'],
+    ['🗃️','Other Expenses',otherPKM,'Miscellaneous trip expenses','linear-gradient(135deg,#64748b,#475569)'],
+  ].map(([icon,label,val,sub,grad])=>`
+  <div class="cost-row">
+    <div class="ci">
+      <div class="ci-icon" style="background:${grad}">${icon}</div>
+      <div>
+        <div class="fw6" style="font-size:13px">${label}</div>
+        <div class="fs11 col-3">${sub}</div>
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div class="fw7" style="font-size:16px;color:var(--text)">${val>0?'₹'+val.toFixed(2):val===0?'₹0.00':'—'}</div>
+      <div class="fs11 col-3">${val>0?'per km':val===0?'no data':'not set'}</div>
+    </div>
+  </div>`).join('')}
+  <div class="cost-total">
+    <span>🚛 TOTAL COST PER KM</span>
+    <span>₹${totalPKM.toFixed(2)} / km</span>
+  </div>
+</div>
+
+<div class="card mb16">
+  <div class="section-header mb12">
+    <h3>📊 Per-Trip Cost Breakdown (Last 20 Trips)</h3>
+    <span class="badge b-bl">${H(truckName(fixTid))}</span>
+  </div>
+  ${(()=>{
+    const lastTrips=DB.trips.filter(t=>t.tid===fixTid).slice().reverse().slice(0,20);
+    if(!lastTrips.length)return '<p class="fs11 col-3">No trips found for this truck. Add trips via Quick Entry.</p>';
+    return '<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Route</th><th>KM</th><th>Income</th><th>Total Cost</th><th>Cost/KM</th><th>Profit</th><th>Profit/KM</th><th>Rating</th></tr></thead><tbody>'+lastTrips.map(t=>{
+      const c=calcTrip(t);const km3=+(t.km)||0;
+      const cpk=km3>0?(c.exp/km3):0;
+      const ppk=km3>0?(c.net/km3):0;
+      const rating=ppk>20?'🟢 Excellent':ppk>10?'🟢 Good':ppk>0?'🟡 OK':ppk===0&&km3===0?'⚪ No KM':'🔴 Loss';
+      return '<tr><td style="white-space:nowrap">'+fD(t.date)+'</td><td style="white-space:nowrap;font-weight:600">'+H(t.from||'?')+'→'+H(t.to||'?')+'</td><td>'+( km3>0?KM(km3):'—')+'</td><td class="tr">'+INR(c.income)+'</td><td class="tr">'+INR(c.exp)+'</td><td class="tr"><span class="pkm-pill">'+(km3>0?'₹'+cpk.toFixed(1)+'/km':'—')+'</span></td><td class="tr fw7" style="color:'+(c.net>=0?'var(--greentxt)':'var(--redtxt)')+'">'+INR(c.net)+'</td><td class="tr"><span class="pkm-pill '+(ppk>10?'good':ppk>0?'warn':'bad')+'">'+(km3>0?'₹'+ppk.toFixed(1)+'/km':'—')+'</span></td><td>'+rating+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+  })()}
+</div>
+
+<div class="card mb16">
+  <div class="fw6 mb12" style="font-size:13px">🧮 Minimum Rate Calculator</div>
+  <div class="fr3">
+    <div class="fg"><label class="fl">Route Distance (KM one way)</label><input type="number" class="fc" id="calc-d" placeholder="550" min="0" oninput="calcRate()"></div>
+    <div class="fg"><label class="fl">Empty Return KM</label><input type="number" class="fc" id="calc-e" placeholder="0" min="0" oninput="calcRate()"></div>
+    <div class="fg"><label class="fl">Target Profit (₹)</label><input type="number" class="fc" id="calc-p" placeholder="15000" min="0" oninput="calcRate()"></div>
+  </div>
+  <div id="calc-result" class="alert al-bl" style="display:none"></div>
+</div>
+>`:''}
+
+<div class="card">
+  <div class="fw6 mb12" style="font-size:13px">Fixed Annual Costs — ${H(truckName(fixTid))}</div>
+  <div class="tbl-wrap mb10"><table>
+  <thead><tr><th>Item</th><th>Annual (₹)</th><th>Monthly (₹)</th><th></th></tr></thead>
+  <tbody>${DB.fixed.filter(f=>f.tid===fixTid).map(f=>`<tr>
+    <td class="fw6">${H(f.item)}</td>
+    <td class="tr"><input type="number" class="fc" style="width:130px;text-align:right" value="${+(f.annual)||0}" onchange="updFixed(${f.id},this.value)" min="0"></td>
+    <td class="tr">${INR((+(f.annual)||0)/12)}</td>
+    <td><button class="btn btn-sm btn-danger" onclick="delFixed(${f.id})">Del</button></td>
+  </tr>`).join('')}</tbody>
+  </table></div>
+  <div class="g3" style="margin-top:10px">
+    <div class="metric"><div class="mlabel">Total Annual Fixed</div><div class="mval">${INR(totAnn)}</div></div>
+    <div class="metric"><div class="mlabel">Monthly Fixed</div><div class="mval">${INR(totMon)}</div></div>
+    <div class="metric"><div class="mlabel">Per Trip (avg)</div><div class="mval">${allTrips.length>0?INR(totAnn/allTrips.length*12):'—'}</div></div>
+  </div>
+  <button class="btn btn-sm" style="margin-top:10px" onclick="openFixedModal()">+ Add Fixed Cost</button>
+</div>`;
+}
+function afterFixed(){}
+function updFixed(id,v){const f=DB.fixed.find(x=>x.id===id);if(f){f.annual=Math.max(0,+(v||0));save();}}
+function delFixed(id){if(!confirm('Delete?'))return;DB.fixed=DB.fixed.filter(x=>x.id!==id);save();go('fixed');}
+function openFixedModal(){
+  OM('Add Fixed Cost',`
+    <div class="fg"><label class="fl">Truck</label><select class="fc" id="fc-tid">${DB.trucks.map(t=>`<option value="${t.id}" ${fixTid===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select></div>
+    <div class="fg"><label class="fl">Item Name</label><input type="text" class="fc" id="fc-n" placeholder="e.g. Insurance"></div>
+    <div class="fg"><label class="fl">Annual Amount (₹)</label><input type="number" class="fc" id="fc-a" value="0" min="0"></div>`,
+  ()=>{
+    const name=sv('fc-n');if(!name){alert('Enter item name.');return;}
+    DB.fixed.push({id:nid(DB.fixed),tid:+lv('fc-tid'),item:name,annual:nv('fc-a'),notes:''});
+    save();CM();go('fixed');
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// SAVINGS
+// ═══════════════════════════════════════════════════
+function pgSav(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openNewSavModal()">+ New Goal</button>`;
+  return DB.savings.map(s=>{
+    const pct=s.total>0?Math.min(100,Math.round(+(s.saved)/+(s.total)*100)):0;
+    const rem=Math.max(0,+(s.total)-+(s.saved));
+    const mons=+(s.target)>0?Math.ceil(rem/+(s.target)):'—';
+    const lbl=pct>=100?'Goal Reached':pct>=75?'Almost There':pct>=50?'Halfway There':pct>=25?'Good Start':'Just Starting';
+    return`<div class="card mb12">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div><div class="fw7" style="font-size:15px">${H(s.goal)}</div><span class="badge b-bl">${lbl}</span></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm btn-success" onclick="openSavContrib(${s.id})">+ Add</button>
+          <button class="btn btn-sm" onclick="openSavEdit(${s.id})">Edit</button>
+        </div>
+      </div>
+      <div class="g4 mb12">
+        <div class="metric"><div class="mlabel">Goal</div><div class="mval">${INR(s.total)}</div></div>
+        <div class="metric gn"><div class="mlabel">Saved</div><div class="mval">${INR(s.saved)}</div></div>
+        <div class="metric"><div class="mlabel">Remaining</div><div class="mval">${INR(rem)}</div></div>
+        <div class="metric"><div class="mlabel">Monthly Target</div><div class="mval">${INR(s.target)}</div></div>
+      </div>
+      <div class="pw mb6"><div class="pf ${pct>=100?'gn':pct>=60?'gn':'am'}" style="width:${pct}%"></div></div>
+      <div style="display:flex;justify-content:space-between"><span class="fs11 col-3">${pct}% complete</span><span class="fs11 col-3">${mons!=='—'?mons+' months to goal':''}</span></div>
+    </div>`;
+  }).join('');
+}
+function openSavContrib(id){
+  EID=id;const s=DB.savings.find(x=>x.id===id)||{};
+  OM('Add to: '+H(s.goal||''),`<div class="infobox">Saved: ${INR(s.saved)} · Goal: ${INR(s.total)}</div><div class="fg"><label class="fl">Amount (₹)</label><input type="number" class="fc" id="sc-a" placeholder="0" min="0"></div>`,
+  ()=>{const add=nv('sc-a');if(add<=0){alert('Enter amount > 0.');return;}const i=DB.savings.findIndex(x=>x.id===EID);if(i>=0)DB.savings[i].saved=(+(DB.savings[i].saved)||0)+add;log('Savings',INR(add)+' added to '+s.goal);save();CM();go('sav');});
+}
+function openSavEdit(id){
+  EID=id;const s=DB.savings.find(x=>x.id===id)||{};
+  OM('Edit Goal',`
+    <div class="fg"><label class="fl">Goal Name</label><input type="text" class="fc" id="sg-n" value="${H(s.goal||'')}"></div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Total Goal (₹)</label><input type="number" class="fc" id="sg-t" value="${s.total||0}"></div>
+      <div class="fg"><label class="fl">Monthly Target (₹)</label><input type="number" class="fc" id="sg-mt" value="${s.target||0}"></div>
+    </div>
+    <div class="fg"><label class="fl">Total Saved (₹)</label><input type="number" class="fc" id="sg-s" value="${s.saved||0}"></div>`,
+  ()=>{const i=DB.savings.findIndex(x=>x.id===EID);if(i>=0)DB.savings[i]={...DB.savings[i],goal:sv('sg-n'),total:nv('sg-t'),target:nv('sg-mt'),saved:nv('sg-s')};save();CM();go('sav');});
+}
+function openNewSavModal(){
+  OM('New Savings Goal',`
+    <div class="fg"><label class="fl">Goal Name</label><input type="text" class="fc" id="ns-n" placeholder="e.g. New Tyre Fund"></div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Total Goal (₹)</label><input type="number" class="fc" id="ns-t" value="0"></div>
+      <div class="fg"><label class="fl">Monthly Target (₹)</label><input type="number" class="fc" id="ns-mt" value="0"></div>
+    </div>`,
+  ()=>{const n=sv('ns-n');if(!n){alert('Enter goal name.');return;}DB.savings.push({id:nid(DB.savings),goal:n,total:nv('ns-t'),target:nv('ns-mt'),saved:0});save();CM();go('sav');});
+}
+
+// ═══════════════════════════════════════════════════
+// PADDY SEASON
+// ═══════════════════════════════════════════════════
+function pgPaddy(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openPaddySeasModal()">+ New Season</button>`;
+  if(!DB.paddySeas.length)return emSt('No paddy seasons','Create a season to track paddy/grain transport income');
+  return DB.paddySeas.map(s=>{
+    const entries=DB.paddyEntr.filter(e=>e.sid===s.id);
+    const total=entries.reduce((a,e)=>a+(+(e.income||0)),0);
+    return`<div class="card mb12">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div><div class="fw7" style="font-size:15px">${H(s.name)}</div>
+          <div class="fs11 col-3">${fD(s.start)} – ${fD(s.end)} · Govt Rate: ${INR(s.rate)}/bag · ${H(truckName(s.tid))}</div></div>
+        <div class="fw7" style="font-size:18px;color:var(--greentxt)">${INR(total)}</div>
+      </div>
+      <button class="btn btn-sm mb10" onclick="openPaddyEntModal(${s.id})">+ Add Entry</button>
+      ${entries.length?`<div class="tbl-wrap"><table>
+        <thead><tr><th>Date</th><th>Location</th><th>Work</th><th>Bags</th><th>Rate</th><th>Income</th></tr></thead>
+        <tbody>${entries.map(e=>`<tr><td>${fD(e.date)}</td><td>${H(e.loc||'—')}</td><td>${H(e.work||'—')}</td><td>${e.qty}</td><td>${INR(e.rate)}</td><td>${INR(e.income)}</td></tr>`).join('')}</tbody>
+      </table></div>`:'<p class="fs11 col-3">No entries yet</p>'}
+    </div>`;
+  }).join('');
+}
+function openPaddySeasModal(){
+  OM('New Paddy Season',`
+    <div class="fg"><label class="fl">Season Name</label><input type="text" class="fc" id="ps-n" placeholder="e.g. Kharif 2026"></div>
+    <div class="fg"><label class="fl">Truck</label><select class="fc" id="ps-tid">${DB.trucks.map(t=>`<option value="${t.id}">${H(t.reg)}</option>`).join('')}</select></div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Start Date</label><input type="date" class="fc" id="ps-s"></div>
+      <div class="fg"><label class="fl">End Date</label><input type="date" class="fc" id="ps-e"></div>
+    </div>
+    <div class="fg"><label class="fl">Govt Rate/Bag (₹)</label><input type="number" class="fc" id="ps-r" value="0" min="0"></div>`,
+  ()=>{const name=sv('ps-n');if(!name){alert('Enter season name.');return;}DB.paddySeas.push({id:nid(DB.paddySeas),name,tid:+lv('ps-tid'),start:sv('ps-s'),end:sv('ps-e'),rate:nv('ps-r')});save();CM();go('paddy');});
+}
+function openPaddyEntModal(sid){
+  const s=DB.paddySeas.find(x=>x.id===sid)||{};
+  EID=sid;
+  OM('Add Paddy Entry',`
+    <div class="fr2">
+      <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="pe-d" value="${today()}"></div>
+      <div class="fg"><label class="fl">Village / Location</label><input type="text" class="fc" id="pe-l"></div>
+    </div>
+    <div class="fg"><label class="fl">Work Type</label><input type="text" class="fc" id="pe-w" placeholder="Loading / Transport..."></div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Bags</label><input type="number" class="fc" id="pe-q" value="0" min="0" oninput="peC()"></div>
+      <div class="fg"><label class="fl">Rate/Bag (₹)</label><input type="number" class="fc" id="pe-r" value="${s.rate||0}" min="0" oninput="peC()"></div>
+    </div>
+    <div><label class="fl">Income</label><div class="calc gn" id="pe-inc">₹0</div></div>`,
+  ()=>{const qty=nv('pe-q'),rate=nv('pe-r');if(qty<=0){alert('Enter bags > 0.');return;}DB.paddyEntr.push({id:nid(DB.paddyEntr),sid:EID,date:sv('pe-d'),loc:sv('pe-l'),work:sv('pe-w'),qty,rate,income:qty*rate});save();CM();go('paddy');});
+}
+function peC(){const e=document.getElementById('pe-inc');if(e)e.textContent=INR(nv('pe-q')*nv('pe-r'));}
+
+// ═══════════════════════════════════════════════════
+// BANK REPORT
+// ═══════════════════════════════════════════════════
+function pgBank(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn" onclick="window.print()">🖨 Print</button>`;
+  const at=allStats(0);const ms=mStats(0,new Date().getFullYear(),new Date().getMonth());const t=DB.trucks[0]||{};
+  return`<div style="max-width:700px;margin:0 auto">
+  <div class="card" style="padding:24px">
+    <div style="text-align:center;border-bottom:2px solid var(--border);padding-bottom:16px;margin-bottom:16px">
+      <div style="font-size:22px;font-weight:800">MALDAR ROADLINES</div>
+      <div class="fs11 col-3 mt4">Transport · Logistics · Goods Carrier · Hyderabad, Telangana</div>
+    </div>
+    <div style="font-size:17px;font-weight:700;text-align:center;margin-bottom:16px">FINANCIAL PERFORMANCE REPORT</div>
+    <div class="g2 mb16">
+      ${DB.trucks.map(t2=>`<div><div class="fs11 col-3">Truck ${t2.id}</div><div class="fw6">${H(t2.reg)} — ${H(t2.make)} ${H(t2.type)}</div></div>`).join('')}
+      <div><div class="fs11 col-3">Report Date</div><div class="fw6">${fD(today())}</div></div>
+    </div>
+    <div class="sdiv">All-Time Summary — Entire Fleet</div>
+    <div class="g2 mb16">
+      <div><div class="fs11 col-3">Total Gross Income</div><div class="fw7" style="font-size:16px">${INR(at.inc)}</div></div>
+      <div><div class="fs11 col-3">Total Net Profit</div><div class="fw7" style="font-size:16px;color:${at.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(at.net)}</div></div>
+      <div><div class="fs11 col-3">Total Trips</div><div class="fw6">${at.trips}</div></div>
+      <div><div class="fs11 col-3">Total KM</div><div class="fw6">${KM(at.km)}</div></div>
+      <div><div class="fs11 col-3">Total Fuel Cost</div><div class="fw6">${INR(at.fuel)}</div></div>
+      <div><div class="fs11 col-3">Avg Mileage</div><div class="fw6">${at.avgMil>0?at.avgMil+' km/L':'—'}</div></div>
+      <div><div class="fs11 col-3">Avg Profit/Trip</div><div class="fw6">${at.trips>0?INR(at.net/at.trips):'—'}</div></div>
+      <div><div class="fs11 col-3">Pending Receivables</div><div class="fw6">${INR(at.pend)}</div></div>
+    </div>
+    <div class="sdiv">Current Month</div>
+    <div class="g2">
+      <div><div class="fs11 col-3">Monthly Income</div><div class="fw7">${INR(ms.inc)}</div></div>
+      <div><div class="fs11 col-3">Monthly Net Profit</div><div class="fw7" style="color:${ms.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(ms.net)}</div></div>
+      <div><div class="fs11 col-3">Trips This Month</div><div class="fw6">${ms.trips}</div></div>
+      <div><div class="fs11 col-3">Total Expenses</div><div class="fw6">${INR(ms.exp)}</div></div>
+    </div>
+    <div style="margin-top:36px;border-top:1px solid var(--border);padding-top:12px;font-size:11px;color:var(--text3);text-align:center">Auto-generated · Maldar Fleet Manager · Hyderabad, Telangana</div>
+  </div></div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// ACTIVITY LOG
+// ═══════════════════════════════════════════════════
+function pgActivity(){
+  if(!DB.activity||!DB.activity.length)return emSt('No activity yet','All adds, edits and deletions are logged here');
+  return`<div style="max-width:600px">${DB.activity.map(a=>`<div class="act-item">
+    <div style="display:flex;justify-content:space-between;align-items:center"><span class="badge b-gr" style="font-size:10px">${H(a.type)}</span><span class="fs11 col-3">${H(a.ts)}</span></div>
+    <div style="margin-top:2px">${H(a.detail)}</div>
+  </div>`).join('')}</div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════
+function pgSettings(){
+  return`
+<div class="g2">
+  <div>
+    ${DB.trucks.map(t=>`<div class="card mb12">
+      <div class="sdiv">Truck ${t.id}: ${H(t.reg)}</div>
+      <div class="fr2">
+        <div class="fg"><label class="fl">Registration</label><input type="text" class="fc" id="st${t.id}-reg" value="${H(t.reg)}"></div>
+        <div class="fg"><label class="fl">Make</label><input type="text" class="fc" id="st${t.id}-make" value="${H(t.make)}"></div>
+      </div>
+      <div class="fr2">
+        <div class="fg"><label class="fl">Type</label><input type="text" class="fc" id="st${t.id}-type" value="${H(t.type)}"></div>
+        <div class="fg"><label class="fl">Year</label><input type="text" class="fc" id="st${t.id}-year" value="${H(t.year||'')}"></div>
+      </div>
+      <div class="fr2">
+        <div class="fg"><label class="fl">Status</label><select class="fc" id="st${t.id}-status"><option ${t.status==='Active'?'selected':''}>Active</option><option ${t.status==='Parked'?'selected':''}>Parked</option><option ${t.status==='Sold'?'selected':''}>Sold</option></select></div>
+        <div class="fg"><label class="fl">Home City</label><input type="text" class="fc" id="st${t.id}-city" value="${H(t.city||'')}"></div>
+      </div>
+      <button class="btn btn-success" onclick="saveTruck(${t.id})">Save Truck ${t.id}</button>
+    </div>`).join('')}
+    <div class="card">
+      <div class="sdiv">Add Second Truck</div>
+      <button class="btn btn-primary" onclick="addTruck()">+ Add New Truck</button>
+    </div>
+  </div>
+  <div>
+    <div class="card mb12">
+      <div class="sdiv">Owner Details</div>
+      <div class="fg"><label class="fl">Owner Name</label><input type="text" class="fc" id="own-n" value="${H(DB.owner?.name||'')}"></div>
+      <div class="fg"><label class="fl">Phone</label><input type="text" class="fc" id="own-ph" value="${H(DB.owner?.phone||'')}"></div>
+      <div class="fg"><label class="fl">Address</label><input type="text" class="fc" id="own-a" value="${H(DB.owner?.address||'Hyderabad, Telangana')}"></div>
+      <button class="btn btn-success" onclick="saveOwner()">Save Owner Details</button>
+    </div>
+    <div class="card">
+      <div class="sdiv">Data Management</div>
+      <div class="alert al-bl mb10">Last saved: ${H(DB._ts||'Never')} · Version: ${DB._v||1}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn" onclick="exportData()">📥 Export Backup (JSON)</button>
+        <button class="btn" onclick="importData()">📤 Import Backup</button>
+        <button class="btn btn-danger" onclick="if(confirm('⚠️ Delete ALL data permanently? This cannot be undone.\\n\\nExport a backup first!'))resetData()">🗑 Reset All Data</button>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+function saveTruck(id){
+  const t=DB.trucks.find(x=>x.id===id);if(!t)return;
+  t.reg=sv(`st${id}-reg`);t.make=sv(`st${id}-make`);t.type=sv(`st${id}-type`);t.year=sv(`st${id}-year`);t.status=lv(`st${id}-status`);t.city=sv(`st${id}-city`);
+  document.getElementById('sb-sub').textContent=`${DB.trucks.filter(t2=>t2.status==='Active').length} Active Trucks · Maldar Roadlines`;
+  save();alert('Truck '+id+' saved!');
+}
+function addTruck(){
+  const id=nid(DB.trucks);
+  DB.trucks.push({id,reg:'New Truck '+id,make:'',model:'',type:'12-Tyre HCV',year:'',price:0,driver:'',city:'Hyderabad',status:'Active',notes:''});
+  // Add default docs and maint for new truck
+  const docNames=['RC – Registration','Fitness Certificate','Insurance','National Permit','State Permit – Telangana','PUC Certificate','Road Tax'];
+  docNames.forEach(n=>DB.docs.push({id:nid(DB.docs),tid:id,name:n,no:'',issue:'',expiry:'',notes:''}));
+  const maintItems=[['Greasing',5000],['Engine Oil',10000],['Oil Filter',10000],['Fuel Filter',20000],['Brakes',20000],['Major Service',50000]];
+  maintItems.forEach(([item,kmi])=>DB.maint.push({id:nid(DB.maint),tid:id,item,kmi,lastKm:0,lastDate:'',cost:0,garage:'',notes:''}));
+  const pos=['Steer L','Steer R','DA1 L-Out','DA1 L-In','DA1 R-In','DA1 R-Out','DA2 L-Out','DA2 L-In','DA2 R-In','DA2 R-Out','Spare 1','Spare 2'];
+  pos.forEach(p=>DB.tyres.push({id:nid(DB.tyres),tid:id,pos:p,brand:'',cost:0,fit:0,rem:0,exp:100000,status:'Empty',notes:''}));
+  ['Insurance','Road Tax','National Permit','Fitness Certificate'].forEach(item=>DB.fixed.push({id:nid(DB.fixed),tid:id,item,annual:0,notes:''}));
+  log('Truck Added',`Truck ${id}`);save();go('settings');alert('New truck added! Edit its details above.');
+}
+function saveOwner(){if(!DB.owner)DB.owner={};DB.owner.name=sv('own-n');DB.owner.phone=sv('own-ph');DB.owner.address=sv('own-a');save();alert('Owner details saved!');}
+function exportData(){const b=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`MaldarFleet_backup_${today()}.json`;a.click();}
+function importData(){if(!confirm('Import will overwrite existing data. Export a backup first. Continue?'))return;const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const p=JSON.parse(ev.target.result);DB=migrate(p);save();alert('Data imported!');go('dashboard');}catch(err){alert('Invalid backup file.');}};r.readAsText(f);};i.click();}
+function resetData(){DB=fresh();save();alert('All data cleared.');go('dashboard');}
+
+
+// ═══════════════════════════════════════════════════
+// COST CALCULATOR (called from pgFixed HTML)
+// ═══════════════════════════════════════════════════
+let _totalPKM=0;
+function calcRate(){
+  const d=+(document.getElementById('calc-d')?.value||0);
+  const e2=+(document.getElementById('calc-e')?.value||0);
+  const p=+(document.getElementById('calc-p')?.value||0);
+  const el=document.getElementById('calc-result');
+  if(!el||d<=0)return;
+  const totKm2=d+e2;
+  const be=totKm2*_totalPKM;
+  const toProfit=be+p;
+  const rec=toProfit*1.2;
+  el.style.display='block';
+  el.innerHTML='<strong>Route: '+d+' km + '+e2+' km empty = '+totKm2+' total km</strong><br>Break-even freight: ₹'+Math.round(be).toLocaleString('en-IN')+'<br>To earn ₹'+p.toLocaleString('en-IN')+' profit: <strong>₹'+Math.round(toProfit).toLocaleString('en-IN')+' minimum</strong><br>Recommended rate (20% margin): <strong style="color:var(--greentxt)">₹'+Math.round(rec).toLocaleString('en-IN')+'</strong>';
+}
+
+// ═══════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════
+function OM(title,body,onSave){
+  document.getElementById('MTITLE').textContent=title;
+  document.getElementById('MBODY').innerHTML=body;
+  document.getElementById('MOV').classList.add('open');
+  MC=onSave;
+}
+function CM(){document.getElementById('MOV').classList.remove('open');EID=null;MC=null;}
+function MS(){if(MC)try{MC();}catch(e){console.error(e);alert('Error: '+e.message);}}
+document.getElementById('MOV').addEventListener('click',e=>{if(e.target===document.getElementById('MOV'))CM();});
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+initDB();
+go('dashboard');
+</script>
+</body>
+</html>
