@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Maldar Fleet Manager</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -1017,6 +1018,9 @@ function pgTrips(){
   const totInc=trips.reduce((s,t)=>s+(+(t.income)||0),0);
   const totNet=trips.reduce((s,t)=>s+calcTrip(t).net,0);
   const totPend=trips.reduce((s,t)=>s+(+(t.pending)||0),0);
+  const ranked=trips.map(t=>({t,c:calcTrip(t)})).filter(x=>x.t.km>0).sort((a,b)=>b.c.ppkm-a.c.ppkm);
+  const bestTrip=ranked[0];
+  const worstTrip=ranked[ranked.length-1];
   return`
 <div class="fbar">
   <input type="search" placeholder="Search route, broker, goods..." oninput="tF.search=this.value;go('trips')" value="${H(tF.search)}">
@@ -1030,6 +1034,26 @@ function pgTrips(){
   <div class="metric"><div class="mlabel">Total Income</div><div class="mval">${INR(totInc)}</div></div>
   <div class="metric ${totNet>=0?'gn':'rd'}"><div class="mlabel">Net Profit</div><div class="mval">${INR(totNet)}</div></div>
 </div>
+${bestTrip&&worstTrip&&bestTrip!==worstTrip?`<div class="g2 mb12">
+  <div class="card" style="border-left:3px solid var(--green)">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div><div class="fs11 col-3">🏆 Best Trip (Profit/KM)</div>
+        <div class="fw6" style="font-size:13px">${H(bestTrip.t.from||'?')}→${H(bestTrip.t.to||'?')} · ${fD(bestTrip.t.date)}</div>
+      </div>
+      <span class="pkm-pill good">₹${bestTrip.c.ppkm.toFixed(1)}/km</span>
+    </div>
+    <button class="btn btn-sm" style="margin-top:8px" onclick="openTripModal(${bestTrip.t.id})">View / Edit</button>
+  </div>
+  <div class="card" style="border-left:3px solid var(--red)">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div><div class="fs11 col-3">⚠ Worst Trip (Profit/KM)</div>
+        <div class="fw6" style="font-size:13px">${H(worstTrip.t.from||'?')}→${H(worstTrip.t.to||'?')} · ${fD(worstTrip.t.date)}</div>
+      </div>
+      <span class="pkm-pill ${worstTrip.c.ppkm>0?'warn':'bad'}">₹${worstTrip.c.ppkm.toFixed(1)}/km</span>
+    </div>
+    <button class="btn btn-sm" style="margin-top:8px" onclick="openTripModal(${worstTrip.t.id})">View / Edit</button>
+  </div>
+</div>`:''}
 ${trips.length===0?emSt('No trips found','Adjust filters or add a trip'):`
 <div class="tbl-wrap"><table>
 <thead><tr><th>#</th><th>Date</th><th>Truck</th><th>Route</th><th>Broker</th><th>Income</th><th>Fuel</th><th>Toll</th><th>Net Profit</th><th>KM</th><th>Cost/KM</th><th>Profit/KM</th><th>Payment</th><th>Pending</th><th></th></tr></thead>
@@ -2258,13 +2282,16 @@ function calcRate(){
 // BILTY / INVOICE GENERATOR
 // ═══════════════════════════════════════════════════
 let biltyTid=0;
+let qtPrefill=null;
 function pgBilty(){
-  document.getElementById('topbar-actions').innerHTML=`<button class="btn" onclick="printBilty()">🖨 Print Bilty</button>`;
+  const pre=qtPrefill;qtPrefill=null;
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn" onclick="printBilty()">🖨 Print Bilty</button><button class="btn btn-success" onclick="downloadPDF('bilty-doc','Bilty_'+today())">⬇ Download PDF</button><button class="btn" style="background:#25D366;color:#fff;border-color:#25D366" onclick="shareBiltyWhatsApp()">💬 WhatsApp</button>`;
   const trips=DB.trips.slice().reverse().slice(0,60);
   const selT=biltyTid?DB.trips.find(x=>x.id===biltyTid):null;
   return`
 <div class="g2">
 <div>
+${pre?`<div class="alert al-bl mb12">📋 Pre-filled from Quotation — review and adjust before printing.</div>`:''}
 <div class="card mb12">
   <div class="sdiv">Select Trip or Fill Manually</div>
   <div class="fg"><label class="fl">Choose a Trip</label>
@@ -2274,25 +2301,25 @@ function pgBilty(){
     </select>
   </div>
   <div class="fr2">
-    <div class="fg"><label class="fl">Consignor (Sender)</label><input type="text" class="fc" id="bt-from" placeholder="Sender name" value="${H(selT?selT.from||'':'')}"></div>
-    <div class="fg"><label class="fl">Consignee (Receiver)</label><input type="text" class="fc" id="bt-to" placeholder="Receiver name" value="${H(selT?selT.to||'':'')}"></div>
+    <div class="fg"><label class="fl">Consignor (Sender)</label><input type="text" class="fc" id="bt-from" placeholder="Sender name" value="${H(pre?pre.from||'':(selT?selT.from||'':''))}"></div>
+    <div class="fg"><label class="fl">Consignee (Receiver)</label><input type="text" class="fc" id="bt-to" placeholder="Receiver name" value="${H(pre?pre.to||'':(selT?selT.to||'':''))}"></div>
   </div>
   <div class="fr2">
-    <div class="fg"><label class="fl">From City</label><input type="text" class="fc" id="bt-fcity" value="${H(selT?selT.from||'':'')}"></div>
-    <div class="fg"><label class="fl">To City</label><input type="text" class="fc" id="bt-tcity" value="${H(selT?selT.to||'':'')}"></div>
+    <div class="fg"><label class="fl">From City</label><input type="text" class="fc" id="bt-fcity" value="${H(pre?pre.fcity||'':(selT?selT.from||'':''))}"></div>
+    <div class="fg"><label class="fl">To City</label><input type="text" class="fc" id="bt-tcity" value="${H(pre?pre.tcity||'':(selT?selT.to||'':''))}"></div>
   </div>
   <div class="fr3">
-    <div class="fg"><label class="fl">Goods</label><input type="text" class="fc" id="bt-goods" value="${H(selT?selT.goods||'':'')}"></div>
-    <div class="fg"><label class="fl">Weight/Qty</label><input type="text" class="fc" id="bt-wt" placeholder="25 Tonnes / 500 Bags"></div>
+    <div class="fg"><label class="fl">Goods</label><input type="text" class="fc" id="bt-goods" value="${H(pre?pre.goods||'':(selT?selT.goods||'':''))}"></div>
+    <div class="fg"><label class="fl">Weight/Qty</label><input type="text" class="fc" id="bt-wt" placeholder="25 Tonnes / 500 Bags" value="${H(pre?pre.wt||'':'')}"></div>
     <div class="fg"><label class="fl">No. of Articles</label><input type="text" class="fc" id="bt-art" placeholder="1 Truck Load"></div>
   </div>
   <div class="fr3">
-    <div class="fg"><label class="fl">Rate</label><input type="text" class="fc" id="bt-rate" value="${H(selT?selT.rtype+' @ ₹'+selT.rate:'')}"></div>
-    <div class="fg"><label class="fl">Total Freight (₹)</label><input type="number" class="fc" id="bt-freight" value="${selT?selT.income||0:0}"></div>
+    <div class="fg"><label class="fl">Rate</label><input type="text" class="fc" id="bt-rate" value="${H(pre?pre.rate||'':(selT?selT.rtype+' @ ₹'+selT.rate:''))}"></div>
+    <div class="fg"><label class="fl">Total Freight (₹)</label><input type="number" class="fc" id="bt-freight" value="${pre?pre.freight||0:(selT?selT.income||0:0)}"></div>
     <div class="fg"><label class="fl">Payment Terms</label><select class="fc" id="bt-pay"><option>To Pay</option><option>Paid</option><option>To Be Billed</option></select></div>
   </div>
   <div class="fr2">
-    <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="bt-date" value="${selT?selT.date:today()}"></div>
+    <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="bt-date" value="${pre?pre.date||today():(selT?selT.date:today())}"></div>
     <div class="fg"><label class="fl">LR / Bilty No.</label><input type="text" class="fc" id="bt-lr" value="LR-${String(Date.now()).slice(-4)}"></div>
   </div>
   <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="go('bilty')">Preview →</button>
@@ -2468,6 +2495,18 @@ function printBilty(){
   if(!el){alert('Fill the bilty details and click Preview first, then print.');return;}
   printDoc(el.outerHTML,'A5 Bilty - Maldar Roadlines','landscape');
 }
+function shareBiltyWhatsApp(){
+  const el=document.getElementById('bilty-doc');
+  if(!el){alert('Fill the bilty details and click Preview first, then try again.');return;}
+  downloadPDF('bilty-doc','Bilty_'+today());
+  const lr=getV('bt-lr')||'LR-0001';
+  const consignee=getV('bt-to')||'Client';
+  const from=getV('bt-fcity')||'—';
+  const to=getV('bt-tcity')||'—';
+  const freight=getN('bt-freight')||0;
+  const msg=`📄 *Bilty ${lr}* — Maldar Roadlines\nRoute: ${from} → ${to}\nConsignee: ${consignee}\nFreight: ₹${freight}\n\n(PDF has just been downloaded to your device — please attach it in this chat)`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}
 
 function printDoc(html,title,orientation){
   // Remove any existing print iframe
@@ -2487,6 +2526,18 @@ function printDoc(html,title,orientation){
   doc.write('<!DOCTYPE html><html><head><title>'+title+'</title><style>'+css+'</style></head><body>'+html+'</body></html>');
   doc.close();
   setTimeout(()=>{iframe.contentWindow.focus();iframe.contentWindow.print();},600);
+}
+function downloadPDF(elId,filename){
+  const el=document.getElementById(elId);
+  if(!el){alert('Fill the details and click Preview first.');return;}
+  if(typeof html2pdf==='undefined'){alert('PDF tool did not load — check your internet connection and try again.');return;}
+  html2pdf().set({
+    margin:4,
+    filename:filename+'.pdf',
+    image:{type:'jpeg',quality:0.98},
+    html2canvas:{scale:2,useCORS:true},
+    jsPDF:{unit:'mm',format:'a5',orientation:'landscape'}
+  }).from(el).save();
 }
 
 // ═══════════════════════════════════════════════════
@@ -2836,7 +2887,10 @@ function pgQuotation(){
       <option ${qtType==='Proforma Invoice'?'selected':''}>Proforma Invoice</option>
       <option ${qtType==='Service Agreement'?'selected':''}>Service Agreement</option>
     </select>
-    <button class="btn btn-primary" onclick="printQuotation()">🖨 Print / Share</button>`;
+    <button class="btn btn-primary" onclick="printQuotation()">🖨 Print</button>
+    <button class="btn btn-success" onclick="downloadPDF('qt-doc',qtType.replace(/\s+/g,'_')+'_'+today())">⬇ Download PDF</button>
+    <button class="btn" style="background:#25D366;color:#fff;border-color:#25D366" onclick="shareQuotationWhatsApp()">💬 WhatsApp</button>
+    ${qtType!=='Service Agreement'?`<button class="btn" onclick="convertQuotationToBilty()">➜ Convert to Bilty</button>`:''}`;
 
   const owner=DB.owner||{};
   const truck=DB.trucks[0]||{};
@@ -3045,6 +3099,39 @@ function printQuotation(){
   const el=document.getElementById('qt-doc');
   if(!el){alert('Fill the details and click Preview first.');return;}
   printDoc(el.outerHTML,'Quotation - Maldar Roadlines','landscape');
+}
+function shareQuotationWhatsApp(){
+  const el=document.getElementById('qt-doc');
+  if(!el){alert('Fill the details and click Preview first, then try again.');return;}
+  downloadPDF('qt-doc',qtType.replace(/\s+/g,'_')+'_'+today());
+  const docNo=gv('qt-no')||'QT-0001';
+  const cname=gv('qt-cname')||'Client';
+  const from=gv('qt-from')||'—';
+  const to=gv('qt-to')||'—';
+  const rate=gn('qt-rate');
+  const trips=gn('qt-trips')||1;
+  const total=rate*trips;
+  const msg=`📄 *${qtType} ${docNo}* — Maldar Roadlines\nTo: ${cname}\nRoute: ${from} → ${to}\nEstimated Total: ₹${total}\n\n(PDF has just been downloaded to your device — please attach it in this chat)`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}
+function convertQuotationToBilty(){
+  const el=document.getElementById('qt-doc');
+  if(!el){alert('Fill the quotation details and click Preview Document first.');return;}
+  const rate=gn('qt-rate');
+  const trips=gn('qt-trips')||1;
+  qtPrefill={
+    from:gv('qt-cname')||'',
+    to:'',
+    fcity:gv('qt-from')||'',
+    tcity:gv('qt-to')||'',
+    goods:gv('qt-goods')||'',
+    wt:gv('qt-wt')||'',
+    rate:(gv('qt-rtype')||'Per Trip')+' @ ₹'+rate,
+    freight:rate*trips,
+    date:gv('qt-date')||today()
+  };
+  biltyTid=0;
+  go('bilty');
 }
 
 // ═══════════════════════════════════════════════════
