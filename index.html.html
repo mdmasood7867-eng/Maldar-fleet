@@ -369,6 +369,10 @@ textarea.fc{resize:vertical;min-height:60px}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       Bilty/Invoice
     </button>
+    <button class="nav-btn" onclick="go('quotation')" data-p="quotation">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="18" x2="13" y2="18"/></svg>
+      Quotation/PI
+    </button>
     <button class="nav-btn" onclick="go('salary')" data-p="salary">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3l-4 4-4-4"/><circle cx="12" cy="14" r="2"/></svg>
       Driver Salary
@@ -596,7 +600,7 @@ function truckColor(tid){return tid===1?'#2563eb':'#7c3aed';}
 // NAVIGATION
 // ═══════════════════════════════════════════════════
 let CP='dashboard',MC=null,EID=null,CHI={};
-const TITLES={dashboard:'Dashboard',quick:'Quick Entry',trips:'Trip Log',fuel:'Fuel Log',expenses:'Expenses',recv:'Receivables',routes:'Route Analysis',fleet:'Fleet Overview',drivers:'Drivers',brokers:'Brokers',maint:'Maintenance & Service',docs:'Documents & Expiry',tyres:'Tyre Tracker',loans:'Loans',pl:'Monthly P&L',cashflow:'Weekly Cash Flow',fixed:'Fixed Costs & Cost/KM',savings:'Savings',paddy:'Paddy Season',bank:'Bank Report',activity:'Activity Log',settings:'Settings',bilty:'Bilty / Invoice Generator',salary:'Driver Salary Settlement',monthly:'Monthly Full Report',emptyKm:'Empty KM Report'};
+const TITLES={dashboard:'Dashboard',quick:'Quick Entry',trips:'Trip Log',fuel:'Fuel Log',expenses:'Expenses',recv:'Receivables',routes:'Route Analysis',fleet:'Fleet Overview',drivers:'Drivers',brokers:'Brokers',maint:'Maintenance & Service',docs:'Documents & Expiry',tyres:'Tyre Tracker',loans:'Loans',pl:'Monthly P&L',cashflow:'Weekly Cash Flow',fixed:'Fixed Costs & Cost/KM',savings:'Savings',paddy:'Paddy Season',bank:'Bank Report',activity:'Activity Log',settings:'Settings',bilty:'Bilty / Invoice Generator',quotation:'Quotation / Proforma Invoice',salary:'Driver Salary Settlement',monthly:'Monthly Full Report',emptyKm:'Empty KM Report'};
 
 function go(p){
   CP=p;
@@ -2183,6 +2187,15 @@ function pgSettings(){
       <div class="fg"><label class="fl">Owner Name</label><input type="text" class="fc" id="own-n" value="${H(DB.owner?.name||'')}"></div>
       <div class="fg"><label class="fl">Phone</label><input type="text" class="fc" id="own-ph" value="${H(DB.owner?.phone||'')}"></div>
       <div class="fg"><label class="fl">Address</label><input type="text" class="fc" id="own-a" value="${H(DB.owner?.address||'Hyderabad, Telangana')}"></div>
+      <div class="fg"><label class="fl">GST Number</label><input type="text" class="fc" id="own-gst" value="${H(DB.owner?.gst||'')}"></div>
+      <div class="fr2">
+        <div class="fg"><label class="fl">Bank Name</label><input type="text" class="fc" id="own-bank" value="${H(DB.owner?.bank||'')}"></div>
+        <div class="fg"><label class="fl">Account Number</label><input type="text" class="fc" id="own-acc" value="${H(DB.owner?.acc||'')}"></div>
+      </div>
+      <div class="fr2">
+        <div class="fg"><label class="fl">IFSC Code</label><input type="text" class="fc" id="own-ifsc" value="${H(DB.owner?.ifsc||'')}"></div>
+        <div class="fg"><label class="fl">UPI ID</label><input type="text" class="fc" id="own-upi" value="${H(DB.owner?.upi||'')}"></div>
+      </div>
       <button class="btn btn-success" onclick="saveOwner()">Save Owner Details</button>
     </div>
     <div class="card">
@@ -2216,7 +2229,7 @@ function addTruck(){
   ['Insurance','Road Tax','National Permit','Fitness Certificate'].forEach(item=>DB.fixed.push({id:nid(DB.fixed),tid:id,item,annual:0,notes:''}));
   log('Truck Added',`Truck ${id}`);save();go('settings');alert('New truck added! Edit its details above.');
 }
-function saveOwner(){if(!DB.owner)DB.owner={};DB.owner.name=sv('own-n');DB.owner.phone=sv('own-ph');DB.owner.address=sv('own-a');save();alert('Owner details saved!');}
+function saveOwner(){if(!DB.owner)DB.owner={};DB.owner.name=sv('own-n');DB.owner.phone=sv('own-ph');DB.owner.address=sv('own-a');DB.owner.gst=sv('own-gst');DB.owner.bank=sv('own-bank');DB.owner.acc=sv('own-acc');DB.owner.ifsc=sv('own-ifsc');DB.owner.upi=sv('own-upi');save();alert('Owner details saved!');}
 function exportData(){const b=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`MaldarFleet_backup_${today()}.json`;a.click();}
 function importData(){if(!confirm('Import will overwrite existing data. Export a backup first. Continue?'))return;const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const p=JSON.parse(ev.target.result);DB=migrate(p);save();alert('Data imported!');go('dashboard');}catch(err){alert('Invalid backup file.');}};r.readAsText(f);};i.click();}
 function resetData(){DB=fresh();save();alert('All data cleared.');go('dashboard');}
