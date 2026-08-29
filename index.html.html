@@ -1316,6 +1316,7 @@ function pgRecv(){
   const totPend=DB.trips.reduce((s,t)=>s+(+(t.pending)||0),0);
   const totInc=DB.trips.reduce((s,t)=>s+(+(t.income)||0),0);
   const totRecv=DB.trips.reduce((s,t)=>s+(+(t.recv)||0),0);
+  const daysOverdue=d=>d?Math.max(0,Math.floor((new Date()-new Date(d))/864e5)):0;
   return`
 <div class="g3 mb16">
   <div class="metric"><div class="mlabel">Total Freight</div><div class="mval">${INR(totInc)}</div></div>
@@ -1324,8 +1325,8 @@ function pgRecv(){
 </div>
 ${pend.length===0?'<div class="alert al-gn">✓ All payments received! No outstanding receivables.</div>':`
 <div class="tbl-wrap"><table>
-<thead><tr><th>#</th><th>Date</th><th>Truck</th><th>Route</th><th>Broker</th><th>Freight</th><th>Received</th><th>Pending</th><th>Status</th><th></th></tr></thead>
-<tbody>${pend.slice().reverse().map(t=>`<tr>
+<thead><tr><th>#</th><th>Date</th><th>Truck</th><th>Route</th><th>Broker</th><th>Freight</th><th>Received</th><th>Pending</th><th>Days Overdue</th><th>Status</th><th></th></tr></thead>
+<tbody>${pend.slice().reverse().map(t=>{const days=daysOverdue(t.date);return`<tr>
   <td class="col-3">${t.id}</td>
   <td>${fD(t.date)}</td>
   <td><span class="badge" style="background:${truckColor(t.tid)}18;color:${truckColor(t.tid)};font-size:10px">${H(truckName(t.tid))}</span></td>
@@ -1334,10 +1335,18 @@ ${pend.length===0?'<div class="alert al-gn">✓ All payments received! No outsta
   <td class="tr">${INR(t.income)}</td>
   <td class="tr">${INR(t.recv||0)}</td>
   <td class="tr fw6 col-r">${INR(t.pending||0)}</td>
+  <td class="tc"><span class="badge ${days>30?'b-rd':days>14?'b-am':'b-bl'}">${days}d</span></td>
   <td><span class="badge ${t.payStatus==='Partial'?'b-am':'b-rd'}">${t.payStatus||'Pending'}</span></td>
-  <td><button class="btn btn-sm btn-success" onclick="openPayModal(${t.id})">Collect ₹</button></td>
-</tr>`).join('')}</tbody>
+  <td style="white-space:nowrap"><button class="btn btn-sm btn-success" onclick="openPayModal(${t.id})">Collect ₹</button> <button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366" onclick="sendPaymentReminder(${t.id})">💬 Remind</button></td>
+</tr>`;}).join('')}</tbody>
 </table></div>`}`;
+}
+function sendPaymentReminder(id){
+  const t=DB.trips.find(x=>x.id===id);if(!t)return;
+  const days=t.date?Math.max(0,Math.floor((new Date()-new Date(t.date))/864e5)):0;
+  const who=t.broker||'there';
+  const msg=`Hello ${who}, this is a payment reminder from Maldar Roadlines.\nTrip: ${t.from||'?'} → ${t.to||'?'} on ${fD(t.date)}\nFreight: ₹${t.income||0}\nReceived: ₹${t.recv||0}\nPending: ₹${t.pending||0} (${days} day${days===1?'':'s'} overdue)\n\nKindly clear the pending amount at your earliest. Thank you.`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
 }
 
 // ═══════════════════════════════════════════════════
