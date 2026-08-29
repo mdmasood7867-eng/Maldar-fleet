@@ -365,6 +365,22 @@ textarea.fc{resize:vertical;min-height:60px}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l4-8 4 4 4-6 4 10"/></svg>
       Paddy Season
     </button>
+    <button class="nav-btn" onclick="go('bilty')" data-p="bilty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Bilty/Invoice
+    </button>
+    <button class="nav-btn" onclick="go('salary')" data-p="salary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3l-4 4-4-4"/><circle cx="12" cy="14" r="2"/></svg>
+      Driver Salary
+    </button>
+    <button class="nav-btn" onclick="go('monthly')" data-p="monthly">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Monthly Report
+    </button>
+    <button class="nav-btn" onclick="go('emptyKm')" data-p="emptyKm">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="19" r="3"/><path d="M9 19h6M1 19h2M22 19h-1M6 16V7l6-5 6 5v9"/></svg>
+      Empty KM
+    </button>
     <button class="nav-btn" onclick="go('bank')" data-p="bank">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       Bank Report
@@ -411,6 +427,7 @@ const H=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g
 const INR=v=>'₹'+Math.round(+(v)||0).toLocaleString('en-IN');
 const KM=v=>Math.round(+(v)||0).toLocaleString('en-IN')+' km';
 const today=()=>new Date().toISOString().slice(0,10);
+const nowStr=()=>new Date().toLocaleString('en-IN');
 const now=()=>new Date().toLocaleString('en-IN');
 const fD=d=>{if(!d)return'—';const p=d.split('-');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:d;};
 const dDiff=d=>{if(!d)return null;return Math.ceil((new Date(d)-new Date())/(864e5));};
@@ -579,7 +596,7 @@ function truckColor(tid){return tid===1?'#2563eb':'#7c3aed';}
 // NAVIGATION
 // ═══════════════════════════════════════════════════
 let CP='dashboard',MC=null,EID=null,CHI={};
-const TITLES={dashboard:'Dashboard',quick:'Quick Entry',trips:'Trip Log',fuel:'Fuel Log',expenses:'Expenses',recv:'Receivables',routes:'Route Analysis',fleet:'Fleet Overview',drivers:'Drivers',brokers:'Brokers',maint:'Maintenance & Service',docs:'Documents & Expiry',tyres:'Tyre Tracker',loans:'Loans',pl:'Monthly P&L',cashflow:'Weekly Cash Flow',fixed:'Fixed Costs & Cost/KM',savings:'Savings',paddy:'Paddy Season',bank:'Bank Report',activity:'Activity Log',settings:'Settings'};
+const TITLES={dashboard:'Dashboard',quick:'Quick Entry',trips:'Trip Log',fuel:'Fuel Log',expenses:'Expenses',recv:'Receivables',routes:'Route Analysis',fleet:'Fleet Overview',drivers:'Drivers',brokers:'Brokers',maint:'Maintenance & Service',docs:'Documents & Expiry',tyres:'Tyre Tracker',loans:'Loans',pl:'Monthly P&L',cashflow:'Weekly Cash Flow',fixed:'Fixed Costs & Cost/KM',savings:'Savings',paddy:'Paddy Season',bank:'Bank Report',activity:'Activity Log',settings:'Settings',bilty:'Bilty / Invoice Generator',salary:'Driver Salary Settlement',monthly:'Monthly Full Report',emptyKm:'Empty KM Report'};
 
 function go(p){
   CP=p;
@@ -588,13 +605,14 @@ function go(p){
   document.getElementById('tsub').textContent=`${DB.trucks.filter(t=>t.status==='Active').length} Active Trucks · Maldar Roadlines`;
   document.getElementById('topbar-actions').innerHTML='';
   Object.values(CHI).forEach(c=>{try{c.destroy();}catch(e){}});CHI={};
-  const pages={dashboard:pgDash,quick:pgQuick,trips:pgTrips,fuel:pgFuel,expenses:pgExp,recv:pgRecv,routes:pgRoutes,fleet:pgFleet,drivers:pgDrivers,brokers:pgBrokers,maint:pgMaint,docs:pgDocs,tyres:pgTyres,loans:pgLoans,pl:pgPL,cashflow:pgCF,fixed:pgFixed,savings:pgSav,paddy:pgPaddy,bank:pgBank,activity:pgActivity,settings:pgSettings};
+  const pages={dashboard:pgDash,quick:pgQuick,trips:pgTrips,fuel:pgFuel,expenses:pgExp,recv:pgRecv,routes:pgRoutes,fleet:pgFleet,drivers:pgDrivers,brokers:pgBrokers,maint:pgMaint,docs:pgDocs,tyres:pgTyres,loans:pgLoans,pl:pgPL,cashflow:pgCF,fixed:pgFixed,savings:pgSav,paddy:pgPaddy,bank:pgBank,activity:pgActivity,settings:pgSettings,bilty:pgBilty,quotation:pgQuotation,salary:pgSalary,monthly:pgMonthly,emptyKm:pgEmptyKm};
   document.getElementById('content').innerHTML=pages[p]?pages[p]():emSt('Coming soon','');
   if(p==='dashboard')afterDash();
   if(p==='pl')afterPL();
   if(p==='cashflow')afterCF();
   if(p==='fuel')afterFuelChart();
   if(p==='fixed')afterFixed();
+  if(p==='monthly')afterMonthly();
 }
 
 // ═══════════════════════════════════════════════════
@@ -714,6 +732,41 @@ ${urgentAlerts.length?`<div class="alert al-rd mb12">🚨 ${urgentAlerts.length}
   </table></div>`}
 </div>
 
+<div class="g2 mb16">
+  <div class="card">
+    <div class="fw7 mb10" style="font-size:13px">📊 This Month vs Last Month</div>
+    ${(()=>{
+      const nd=new Date();const cy=nd.getFullYear();const cm=nd.getMonth();
+      const lm=cm===0?11:cm-1;const ly=cm===0?cy-1:cy;
+      const cs=mStats(selTruck||0,cy,cm);const ls=mStats(selTruck||0,ly,lm);
+      const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const row=(lbl,cv,lv2,fmt)=>{const d=cv-lv2;const arr=d>=0?'↑':'↓';const col=d>=0?'var(--greentxt)':'var(--redtxt)';
+        return '<tr><td class="fw6" style="font-size:12px">'+lbl+'</td><td class="tr" style="font-size:12px">'+fmt(lv2)+'</td><td class="tr" style="font-size:12px">'+fmt(cv)+'</td><td class="tr fw7" style="color:'+col+';font-size:12px">'+arr+fmt(Math.abs(d))+'</td></tr>';};
+      return '<div class="tbl-wrap"><table><thead><tr><th>KPI</th><th>'+mn[lm]+'</th><th>'+mn[cm]+'</th><th>Change</th></tr></thead><tbody>'+
+        row('Income',cs.inc,ls.inc,INR)+row('Net Profit',cs.net,ls.net,INR)+
+        row('Trips',cs.trips,ls.trips,v=>v+' trips')+row('Fuel',cs.fuel,ls.fuel,INR)+
+        row('KM',cs.km,ls.km,v=>Math.round(v).toLocaleString('en-IN')+' km')+
+        '</tbody></table></div>';
+    })()}
+  </div>
+  <div class="card">
+    <div class="fw7 mb10" style="font-size:13px">⚖️ Break-Even This Month</div>
+    ${(()=>{
+      const nd=new Date();const cy=nd.getFullYear();const cm=nd.getMonth();
+      const cs=mStats(selTruck||0,cy,cm);
+      const fixAnn=(selTruck?DB.fixed.filter(f=>f.tid===selTruck):DB.fixed).reduce((s,f)=>s+(+(f.annual)||0),0);
+      const fixMon=fixAnn/12;
+      const needed=fixMon+(cs.fuel||0)+(cs.toll||0)+(cs.load||0)+(cs.addl||0);
+      const surplus=cs.inc-needed;
+      const pct=needed>0?Math.min(100,Math.round(cs.inc/needed*100)):0;
+      const still=Math.max(0,needed-cs.inc);
+      return '<div style="text-align:center;margin-bottom:10px"><div style="font-size:11px;color:var(--text3)">Monthly cost target</div><div style="font-size:20px;font-weight:800">'+INR(needed)+'</div></div>'+
+        '<div class="pw mb6"><div class="pf '+(pct>=100?'gn':pct>=60?'am':'rd')+'" style="width:'+pct+'%"></div></div>'+
+        '<div style="text-align:center;margin-bottom:10px"><span style="font-size:13px;font-weight:700;color:'+(pct>=100?'var(--greentxt)':'var(--redtxt)')+'">'+pct+'% covered</span></div>'+
+        (still>0?'<div class="alert al-rd" style="text-align:center;padding:8px"><div style="font-size:10px">Still needed to break even</div><div style="font-size:18px;font-weight:800">'+INR(still)+'</div></div>':'<div class="alert al-gn" style="text-align:center;padding:8px"><div style="font-size:10px">Surplus above break-even</div><div style="font-size:18px;font-weight:800">'+INR(surplus)+'</div></div>');
+    })()}
+  </div>
+</div>
 <div class="card">
   <div class="fw6 mb12" style="font-size:13px">All-Time Totals${selTruck?' — '+truckName(selTruck):' — All Trucks'}</div>
   <div class="g4">
@@ -2185,6 +2238,800 @@ function calcRate(){
   const rec=toProfit*1.2;
   el.style.display='block';
   el.innerHTML='<strong>Route: '+d+' km + '+e2+' km empty = '+totKm2+' total km</strong><br>Break-even freight: ₹'+Math.round(be).toLocaleString('en-IN')+'<br>To earn ₹'+p.toLocaleString('en-IN')+' profit: <strong>₹'+Math.round(toProfit).toLocaleString('en-IN')+' minimum</strong><br>Recommended rate (20% margin): <strong style="color:var(--greentxt)">₹'+Math.round(rec).toLocaleString('en-IN')+'</strong>';
+}
+
+
+// ═══════════════════════════════════════════════════
+// BILTY / INVOICE GENERATOR
+// ═══════════════════════════════════════════════════
+let biltyTid=0;
+function pgBilty(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn" onclick="printBilty()">🖨 Print Bilty</button>`;
+  const trips=DB.trips.slice().reverse().slice(0,60);
+  const selT=biltyTid?DB.trips.find(x=>x.id===biltyTid):null;
+  return`
+<div class="g2">
+<div>
+<div class="card mb12">
+  <div class="sdiv">Select Trip or Fill Manually</div>
+  <div class="fg"><label class="fl">Choose a Trip</label>
+    <select class="fc" id="bt-trip" onchange="biltyTid=+this.value;go('bilty')">
+      <option value="0">-- Manual entry --</option>
+      ${trips.map(t=>`<option value="${t.id}" ${biltyTid===t.id?'selected':''}>#${t.id} | ${fD(t.date)} | ${H(t.from||'?')}→${H(t.to||'?')} | ${INR(t.income)}</option>`).join('')}
+    </select>
+  </div>
+  <div class="fr2">
+    <div class="fg"><label class="fl">Consignor (Sender)</label><input type="text" class="fc" id="bt-from" placeholder="Sender name" value="${H(selT?selT.from||'':'')}"></div>
+    <div class="fg"><label class="fl">Consignee (Receiver)</label><input type="text" class="fc" id="bt-to" placeholder="Receiver name" value="${H(selT?selT.to||'':'')}"></div>
+  </div>
+  <div class="fr2">
+    <div class="fg"><label class="fl">From City</label><input type="text" class="fc" id="bt-fcity" value="${H(selT?selT.from||'':'')}"></div>
+    <div class="fg"><label class="fl">To City</label><input type="text" class="fc" id="bt-tcity" value="${H(selT?selT.to||'':'')}"></div>
+  </div>
+  <div class="fr3">
+    <div class="fg"><label class="fl">Goods</label><input type="text" class="fc" id="bt-goods" value="${H(selT?selT.goods||'':'')}"></div>
+    <div class="fg"><label class="fl">Weight/Qty</label><input type="text" class="fc" id="bt-wt" placeholder="25 Tonnes / 500 Bags"></div>
+    <div class="fg"><label class="fl">No. of Articles</label><input type="text" class="fc" id="bt-art" placeholder="1 Truck Load"></div>
+  </div>
+  <div class="fr3">
+    <div class="fg"><label class="fl">Rate</label><input type="text" class="fc" id="bt-rate" value="${H(selT?selT.rtype+' @ ₹'+selT.rate:'')}"></div>
+    <div class="fg"><label class="fl">Total Freight (₹)</label><input type="number" class="fc" id="bt-freight" value="${selT?selT.income||0:0}"></div>
+    <div class="fg"><label class="fl">Payment Terms</label><select class="fc" id="bt-pay"><option>To Pay</option><option>Paid</option><option>To Be Billed</option></select></div>
+  </div>
+  <div class="fr2">
+    <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="bt-date" value="${selT?selT.date:today()}"></div>
+    <div class="fg"><label class="fl">LR / Bilty No.</label><input type="text" class="fc" id="bt-lr" value="LR-${String(Date.now()).slice(-4)}"></div>
+  </div>
+  <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="go('bilty')">Preview →</button>
+</div>
+</div>
+<div id="bilty-preview">${genBilty(selT)}</div>
+</div>`;
+}
+
+function getV(id){return(document.getElementById(id)?.value||'').trim();}
+function getN(id){return+(document.getElementById(id)?.value||0);}
+
+function genBilty(trip){
+  const truck=DB.trucks[0]||{};
+  const owner=DB.owner||{};
+  const lr=getV('bt-lr')||'LR-0001';
+  const fromP=getV('bt-from')||(trip?trip.from||'—':'—');
+  const toP=getV('bt-to')||(trip?trip.to||'—':'—');
+  const fromC=getV('bt-fcity')||(trip?trip.from||'—':'—');
+  const toC=getV('bt-tcity')||(trip?trip.to||'—':'—');
+  const goods=getV('bt-goods')||(trip?trip.goods||'—':'—');
+  const wt=getV('bt-wt')||'—';
+  const art=getV('bt-art')||'1 Truck Load';
+  const rate=getV('bt-rate')||(trip?trip.rtype+' @ ₹'+trip.rate:'—');
+  const freight=getN('bt-freight')||(trip?+(trip.income)||0:0);
+  const toll=trip?+(trip.toll)||0:0;
+  const load=trip?+(trip.load)||0:0;
+  const unload=trip?+(trip.unload)||0:0;
+  const total=freight+toll+load+unload;
+  const payT=getV('bt-pay')||'To Pay';
+  const date=getV('bt-date')||(trip?trip.date:today());
+  const drv=trip?DB.drivers.find(d=>d.name===trip.driver):null;
+  const drvName=drv?drv.name:(trip?trip.driver||'—':'—');
+  const recv=trip?+(trip.recv)||0:0;
+  const pending=trip?+(trip.pending)||0:0;
+
+  // Convert number to words for professional look
+  function numWords(n){
+    const a=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const b=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    if(n===0)return'Zero';
+    if(n<0)return'Minus '+numWords(-n);
+    let w='';
+    if(Math.floor(n/100000)>0){w+=numWords(Math.floor(n/100000))+' Lakh ';n%=100000;}
+    if(Math.floor(n/1000)>0){w+=numWords(Math.floor(n/1000))+' Thousand ';n%=1000;}
+    if(Math.floor(n/100)>0){w+=numWords(Math.floor(n/100))+' Hundred ';n%=100;}
+    if(n>0){if(w!=='')w+='and ';if(n<20)w+=a[n];else{w+=b[Math.floor(n/10)];if(n%10>0)w+=' '+a[n%10];}}
+    return w.trim();
+  }
+  const amtWords='Rupees '+numWords(Math.round(total))+' Only';
+
+  return`<div id="bilty-doc" style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#111;background:#fff;width:100%;max-width:780px;border:1.5px solid #1e40af;border-radius:8px;overflow:hidden">
+  <!-- HEADER -->
+  <div style="background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:44px;height:44px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">🚛</div>
+      <div>
+        <div style="font-size:17px;font-weight:900;letter-spacing:-.3px">MALDAR ROADLINES</div>
+        <div style="font-size:10px;opacity:.8">Goods Transport · Logistics · Hyderabad, Telangana</div>
+        <div style="font-size:10px;opacity:.8">${H(owner.phone||'Phone: —')} ${owner.upi?' | UPI: '+owner.upi:''} | GST: ${H(owner.gst||'—')}</div>
+      </div>
+    </div>
+    <div style="text-align:right;background:rgba(255,255,255,.1);border-radius:6px;padding:8px 12px">
+      <div style="font-size:9px;opacity:.75;text-transform:uppercase;letter-spacing:.8px">Consignment Note</div>
+      <div style="font-size:20px;font-weight:900;letter-spacing:-.5px">${H(lr)}</div>
+      <div style="font-size:10px;opacity:.85">Date: ${fD(date)}</div>
+    </div>
+  </div>
+  <!-- TRUCK BAR -->
+  <div style="background:#eff6ff;border-bottom:1px solid #bfdbfe;padding:6px 16px;display:flex;gap:28px;font-size:11px;flex-wrap:wrap">
+    <span>🚛 <b>Truck No:</b> ${H(truck.reg||'TS01UA9828')}</span>
+    <span>📋 <b>Type:</b> ${H(truck.type||'12-Tyre HCV')}</span>
+    <span>👤 <b>Driver:</b> ${H(drvName)}</span>
+    <span>🗓 <b>Trip Date:</b> ${fD(date)}</span>
+    <span style="margin-left:auto;color:#1e40af;font-weight:700">LR No: ${H(lr)}</span>
+  </div>
+  <!-- PARTY DETAILS -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #dde1ee">
+    <div style="padding:10px 14px;border-right:1px solid #dde1ee">
+      <div style="font-size:9px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;padding-bottom:3px;border-bottom:1.5px solid #1e40af">Consignor (Sender / From Party)</div>
+      <div style="font-weight:800;font-size:13px">${H(fromP)}</div>
+      <div style="font-size:11px;color:#475569;margin-top:3px">Loading Point: <b>${H(fromC)}</b></div>
+    </div>
+    <div style="padding:10px 14px">
+      <div style="font-size:9px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;padding-bottom:3px;border-bottom:1.5px solid #16a34a">Consignee (Receiver / To Party)</div>
+      <div style="font-weight:800;font-size:13px">${H(toP)}</div>
+      <div style="font-size:11px;color:#475569;margin-top:3px">Delivery Point: <b>${H(toC)}</b></div>
+    </div>
+  </div>
+  <!-- GOODS TABLE -->
+  <div style="padding:10px 14px;border-bottom:1px solid #dde1ee">
+    <div style="font-size:9px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Goods Details</div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="background:#f8fafc">
+          <th style="padding:6px 10px;text-align:left;border:1px solid #dde1ee;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Description of Goods</th>
+          <th style="padding:6px 10px;text-align:center;border:1px solid #dde1ee;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:700">No. of Articles</th>
+          <th style="padding:6px 10px;text-align:center;border:1px solid #dde1ee;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Weight / Qty</th>
+          <th style="padding:6px 10px;text-align:right;border:1px solid #dde1ee;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Rate</th>
+          <th style="padding:6px 10px;text-align:right;border:1px solid #dde1ee;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Freight Amount (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;font-weight:700;font-size:12px">${H(goods)}</td>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;text-align:center">${H(art)}</td>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;text-align:center;font-weight:600">${H(wt)}</td>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;text-align:right">${H(rate)}</td>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;text-align:right;font-weight:800;font-size:13px;color:#1e40af">${INR(freight)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <!-- CHARGES + PAYMENT -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #dde1ee">
+    <div style="padding:10px 14px;border-right:1px solid #dde1ee">
+      <div style="font-size:9px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Freight Charges Breakdown</div>
+      <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px"><span>Basic Freight</span><span>${INR(freight)}</span></div>
+      ${toll>0?`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;color:#64748b"><span>Toll Charges</span><span>${INR(toll)}</span></div>`:''}
+      ${load>0?`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;color:#64748b"><span>Loading Charges</span><span>${INR(load)}</span></div>`:''}
+      ${unload>0?`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;color:#64748b"><span>Unloading Charges</span><span>${INR(unload)}</span></div>`:''}
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;font-weight:900;border-top:2px solid #1e40af;margin-top:4px;color:#1e40af"><span>GRAND TOTAL</span><span>${INR(total)}</span></div>
+      <div style="font-size:10px;color:#64748b;font-style:italic;margin-top:3px">${amtWords}</div>
+    </div>
+    <div style="padding:10px 14px">
+      <div style="font-size:9px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Payment Information</div>
+      <div style="padding:6px 10px;border-radius:6px;border:1.5px solid ${payT==='Paid'?'#16a34a':payT==='To Pay'?'#dc2626':'#d97706'};background:${payT==='Paid'?'#f0fdf4':payT==='To Pay'?'#fef2f2':'#fffbeb'};margin-bottom:6px">
+        <div style="font-size:11px;font-weight:700;color:${payT==='Paid'?'#15803d':payT==='To Pay'?'#b91c1c':'#92400e'}">Payment Terms: ${H(payT)}</div>
+      </div>
+      ${recv>0?`<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>Amount Received:</span><span style="font-weight:700;color:#15803d">${INR(recv)}</span></div>`:''}
+      ${pending>0?`<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>Balance Pending:</span><span style="font-weight:700;color:#b91c1c">${INR(pending)}</span></div>`:''}
+      ${owner.bank?`<div style="font-size:10px;color:#64748b;margin-top:6px;padding:4px 8px;background:#f8fafc;border-radius:4px">Bank: ${H(owner.bank)}<br>A/c: ${H(owner.acc||'—')} | IFSC: ${H(owner.ifsc||'—')}</div>`:''}
+      ${owner.upi?`<div style="font-size:10px;color:#475569;margin-top:4px;padding:4px 8px;background:#f8fafc;border-radius:4px">UPI: ${H(owner.upi)}</div>`:''}
+    </div>
+  </div>
+  <!-- TERMS + SIGNATURES -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;border-bottom:1px solid #dde1ee">
+    <div style="padding:8px 14px;border-right:1px solid #dde1ee">
+      <div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:4px">TERMS & CONDITIONS</div>
+      <div style="font-size:9px;color:#64748b;line-height:1.6">
+        1. Goods carried at owner's risk | 2. Subject to Hyderabad jurisdiction<br>
+        3. Complaints within 24 hours of delivery | 4. E&amp;OE<br>
+        5. This is a valid transport receipt for all legal purposes
+      </div>
+    </div>
+    <div style="padding:8px 14px">
+      <div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:4px">RECEIVED IN GOOD CONDITION</div>
+      <div style="font-size:9px;color:#64748b">Receiver Signature &amp; Stamp:</div>
+      <div style="height:32px;border-bottom:1px dashed #94a3b8;margin-top:8px"></div>
+      <div style="font-size:9px;color:#64748b;margin-top:3px">Date: _______________</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;padding:10px 14px;gap:10px">
+    <div style="text-align:center">
+      <div style="height:30px;border-bottom:1px solid #0f172a;margin-bottom:4px"></div>
+      <div style="font-size:9px;font-weight:700">Consignor Signature</div>
+    </div>
+    <div style="text-align:center">
+      <div style="height:30px;border-bottom:1px solid #0f172a;margin-bottom:4px"></div>
+      <div style="font-size:9px;font-weight:700">Driver Signature</div>
+    </div>
+    <div style="text-align:center;background:#eff6ff;border-radius:6px;padding:4px">
+      <div style="height:30px;border-bottom:1px solid #1e40af;margin-bottom:4px"></div>
+      <div style="font-size:9px;font-weight:700;color:#1e40af">Maldar Roadlines (Auth. Sign.)</div>
+    </div>
+  </div>
+</div>`;
+}
+
+
+function printBilty(){
+  const el=document.getElementById('bilty-doc');
+  if(!el){alert('Fill the bilty details and click Preview first, then print.');return;}
+  printDoc(el.outerHTML,'A5 Bilty - Maldar Roadlines','landscape');
+}
+
+function printDoc(html,title,orientation){
+  // Remove any existing print iframe
+  const old=document.getElementById('_pf');if(old)old.remove();
+  const css=`
+    @page{size:A5 ${orientation||'portrait'};margin:8mm}
+    *{box-sizing:border-box}
+    body{margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .card{border:none!important;box-shadow:none!important;padding:0!important}
+  `;
+  const iframe=document.createElement('iframe');
+  iframe.id='_pf';
+  iframe.style.cssText='position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none';
+  document.body.appendChild(iframe);
+  const doc=iframe.contentWindow.document;
+  doc.open();
+  doc.write('<!DOCTYPE html><html><head><title>'+title+'</title><style>'+css+'</style></head><body>'+html+'</body></html>');
+  doc.close();
+  setTimeout(()=>{iframe.contentWindow.focus();iframe.contentWindow.print();},600);
+}
+
+// ═══════════════════════════════════════════════════
+// DRIVER SALARY SETTLEMENT
+// ═══════════════════════════════════════════════════
+let salDrv=null,salMon=new Date().getMonth(),salYr=new Date().getFullYear();
+function pgSalary(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn" onclick="printSalSlip()">🖨 Print Slip</button>`;
+  if(!DB.drivers||!DB.drivers.length)return emSt('No drivers','Add drivers from the Drivers page first');
+  if(!salDrv)salDrv=DB.drivers[0].id;
+  const drv=DB.drivers.find(d=>d.id===salDrv)||DB.drivers[0];
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const trips=DB.trips.filter(t=>{const d=new Date(t.date);return d.getFullYear()===salYr&&d.getMonth()===salMon&&t.driver===drv.name;});
+  const salary=+(drv.salary)||0;
+  const advOut=Math.max(0,(+(drv.adv)||0)-(+(drv.advR)||0));
+  if(!DB.salarySettlements)DB.salarySettlements=[];
+  const ex=DB.salarySettlements.find(s=>s.did===salDrv&&s.yr===salYr&&s.mon===salMon)||{ded:0,adv:0};
+  const netPay=salary-(+(ex.ded)||0)-(+(ex.adv)||0);
+  return`
+<div class="g2">
+<div>
+<div class="card mb12">
+  <div class="sdiv">Select Driver & Month</div>
+  <div class="fg"><label class="fl">Driver</label>
+    <select class="fc" onchange="salDrv=+this.value;go('salary')">
+      ${DB.drivers.map(d=>`<option value="${d.id}" ${salDrv===d.id?'selected':''}>${H(d.name)}</option>`).join('')}
+    </select>
+  </div>
+  <div class="fr2">
+    <div class="fg"><label class="fl">Month</label>
+      <select class="fc" onchange="salMon=+this.value;go('salary')">
+        ${MN.map((m,i)=>`<option value="${i}" ${salMon===i?'selected':''}>${m}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg"><label class="fl">Year</label>
+      <select class="fc" onchange="salYr=+this.value;go('salary')">
+        ${[salYr-1,salYr,salYr+1].map(y=>`<option ${salYr===y?'selected':''}>${y}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div class="sdiv">Deductions</div>
+  <div class="fg"><label class="fl">Other Deductions (₹)</label>
+    <input type="number" class="fc" id="sal-ded" value="${+(ex.ded)||0}" min="0">
+  </div>
+  <div class="fg">
+    <label class="fl">Advance Recovery (₹) <small class="col-3">Outstanding: ${INR(advOut)}</small></label>
+    <input type="number" class="fc" id="sal-adv" value="${+(ex.adv)||0}" min="0" max="${advOut}">
+  </div>
+  <button class="btn btn-primary" style="width:100%" onclick="saveSal()">Save Settlement</button>
+</div>
+<div class="card">
+  <div class="sdiv">Stats — ${MN[salMon]} ${salYr}</div>
+  <div class="cost-row"><div><div class="fw6">Trips Driven</div></div><div class="fw7">${trips.length}</div></div>
+  <div class="cost-row"><div><div class="fw6">Income Generated</div></div><div class="fw7">${INR(trips.reduce((s,t)=>s+(+(t.income)||0),0))}</div></div>
+  <div class="cost-row"><div><div class="fw6">Advance Outstanding</div></div><div class="fw7 col-a">${INR(advOut)}</div></div>
+</div>
+</div>
+<div id="sal-slip">
+<div class="card">
+  <div style="border:2px solid #065f46;border-radius:10px;overflow:hidden;font-family:'Segoe UI',sans-serif">
+    <div style="background:linear-gradient(135deg,#065f46,#0d9488);color:#fff;padding:14px 18px;display:flex;justify-content:space-between">
+      <div><div style="font-size:16px;font-weight:800">MALDAR ROADLINES</div><div style="font-size:11px;opacity:.8">Driver Salary Slip</div></div>
+      <div style="text-align:right"><div style="font-size:14px;font-weight:700">${MN[salMon]} ${salYr}</div></div>
+    </div>
+    <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0">
+      <div style="font-size:13px;margin-bottom:3px">Driver: <strong>${H(drv.name)}</strong></div>
+      <div style="font-size:13px;margin-bottom:3px">Phone: ${H(drv.phone||'—')}</div>
+      <div style="font-size:13px">Truck: ${drv.truckId?truckName(drv.truckId):'Not assigned'} | License: ${H(drv.license||'—')}</div>
+    </div>
+    <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0">
+      <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px"><span>Monthly Salary</span><span style="font-weight:600">${INR(salary)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-top:1px dashed #e2e8f0;color:var(--redtxt)"><span>Other Deductions</span><span>- ${INR(+(ex.ded)||0)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:var(--redtxt)"><span>Advance Recovery</span><span>- ${INR(+(ex.adv)||0)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;font-size:16px;font-weight:800;border-top:2px solid #065f46;margin-top:6px"><span>NET PAYABLE</span><span style="color:#065f46">${INR(netPay)}</span></div>
+    </div>
+    <div style="padding:12px 18px;font-size:12px;color:#64748b;border-bottom:1px solid #e2e8f0">
+      <div>Trips this month: <strong>${trips.length}</strong> | Advance remaining after recovery: <strong>${INR(Math.max(0,advOut-(+(ex.adv)||0)))}</strong></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;padding:16px 18px;gap:20px">
+      <div style="text-align:center"><div style="border-top:1px solid #065f46;padding-top:5px;font-size:11px;margin-top:28px">Driver Signature</div></div>
+      <div style="text-align:center"><div style="border-top:1px solid #065f46;padding-top:5px;font-size:11px;margin-top:28px">Employer — Maldar Roadlines</div></div>
+    </div>
+  </div>
+</div>
+</div>
+</div>`;
+}
+
+function saveSal(){
+  if(!salDrv){alert('Select driver.');return;}
+  const ded=+(document.getElementById('sal-ded')?.value||0);
+  const adv=+(document.getElementById('sal-adv')?.value||0);
+  if(!DB.salarySettlements)DB.salarySettlements=[];
+  const idx=DB.salarySettlements.findIndex(s=>s.did===salDrv&&s.yr===salYr&&s.mon===salMon);
+  const rec={did:salDrv,yr:salYr,mon:salMon,ded,adv};
+  if(idx>=0)DB.salarySettlements[idx]=rec;else DB.salarySettlements.push(rec);
+  const drv=DB.drivers.find(d=>d.id===salDrv);
+  if(drv&&adv>0)drv.advR=(+(drv.advR)||0)+adv;
+  log('Salary Settled','Driver: '+(drv?.name||'')+'  |  ₹'+(+(drv?.salary||0)-ded-adv));
+  save();alert('✅ Salary settlement saved!');go('salary');
+}
+
+function printSalSlip(){
+  const el=document.getElementById('sal-slip');
+  if(!el){alert('No slip to print.');return;}
+  printDoc(el.innerHTML,'Salary Slip - Maldar Roadlines','portrait');
+}
+
+// ═══════════════════════════════════════════════════
+// EMPTY KM REPORT
+// ═══════════════════════════════════════════════════
+let ekTid=0,ekYr=new Date().getFullYear();
+function pgEmptyKm(){
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const allT=(ekTid?DB.trips.filter(t=>t.tid===ekTid):DB.trips).filter(t=>t.date?.startsWith(String(ekYr)));
+  const totKm=allT.reduce((s,t)=>s+(+(t.km)||0),0);
+  const totE=allT.reduce((s,t)=>s+(+(t.emptyKm)||0),0);
+  const totL=totKm-totE;
+  const pct=totKm>0?((totE/totKm)*100).toFixed(1):0;
+  const fuelPKM=totKm>0?DB.fuel.filter(f=>!ekTid||f.tid===ekTid).reduce((s,f)=>s+(+(f.totalCost)||0),0)/totKm:0;
+  const eCost=totE*fuelPKM;
+  const byMon=MN.map((mn,i)=>{
+    const mt=allT.filter(t=>new Date(t.date).getMonth()===i);
+    const mk=mt.reduce((s,t)=>s+(+(t.km)||0),0);
+    const ek=mt.reduce((s,t)=>s+(+(t.emptyKm)||0),0);
+    return{mn,trips:mt.length,tk:mk,ek,lk:mk-ek,pct:mk>0?((ek/mk)*100).toFixed(1):0,cost:ek*fuelPKM};
+  }).filter(m=>m.trips>0);
+  const lossTr=allT.filter(t=>calcTrip(t).net<0).sort((a,b)=>calcTrip(a).net-calcTrip(b).net);
+  return`
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+  ${DB.trucks.map(t=>`<button class="truck-tab${ekTid===t.id?' active':''}" onclick="ekTid=${t.id};go('emptyKm')">${H(t.reg)}</button>`).join('')}
+  <button class="truck-tab${ekTid===0?' active':''}" onclick="ekTid=0;go('emptyKm')">All</button>
+  <select class="fc" style="width:auto" onchange="ekYr=+this.value;go('emptyKm')">${[ekYr-1,ekYr,ekYr+1].map(y=>`<option ${ekYr===y?'selected':''}>${y}</option>`).join('')}</select>
+</div>
+<div class="g4 mb16">
+  <div class="metric bl"><div class="mlabel">Total KM Run</div><div class="mval">${Math.round(totKm).toLocaleString('en-IN')}</div><div class="msub">${ekYr}</div></div>
+  <div class="metric te"><div class="mlabel">Loaded KM</div><div class="mval">${Math.round(totL).toLocaleString('en-IN')}</div><div class="msub">With goods</div></div>
+  <div class="metric rd"><div class="mlabel">Empty KM</div><div class="mval">${Math.round(totE).toLocaleString('en-IN')}</div><div class="msub">${pct}% wasted</div></div>
+  <div class="metric am"><div class="mlabel">Fuel Wasted</div><div class="mval">${INR(eCost)}</div><div class="msub">Empty cost</div></div>
+</div>
+${totE>0?`<div class="alert al-am mb12">⚠️ Running <strong>${Math.round(totE).toLocaleString('en-IN')} km empty</strong> (${pct}%) this year is costing you <strong>${INR(eCost)}</strong>. Try to arrange return loads to cut this cost.</div>`:''}
+<div class="card mb14">
+  <div class="fw7 mb10" style="font-size:13px">Monthly Breakdown — ${ekYr}</div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Month</th><th>Trips</th><th>Total KM</th><th>Loaded</th><th>Empty KM</th><th>Empty %</th><th>Fuel Wasted</th></tr></thead>
+    <tbody>${byMon.length?byMon.map(m=>`<tr>
+      <td class="fw6">${m.mn}</td><td class="tc">${m.trips}</td>
+      <td class="tr">${Math.round(m.tk).toLocaleString('en-IN')}</td>
+      <td class="tr col-g">${Math.round(m.lk).toLocaleString('en-IN')}</td>
+      <td class="tr col-r fw6">${Math.round(m.ek).toLocaleString('en-IN')}</td>
+      <td class="tr"><span class="badge ${+m.pct>30?'b-rd':+m.pct>15?'b-am':'b-gn'}">${m.pct}%</span></td>
+      <td class="tr col-r">${INR(m.cost)}</td>
+    </tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">No trips with KM data for '+ekYr+'</td></tr>'}
+    </tbody>
+  </table></div>
+</div>
+<div class="card">
+  <div class="fw7 mb10" style="font-size:13px">🔴 Loss-Making Trips — ${ekYr}</div>
+  ${lossTr.length?`<div class="tbl-wrap"><table>
+    <thead><tr><th>Date</th><th>Route</th><th>Income</th><th>Cost</th><th>Loss</th><th>Profit/KM</th><th>Empty KM</th></tr></thead>
+    <tbody>${lossTr.slice(0,20).map(t=>{const c=calcTrip(t);const km2=+(t.km)||0;return`<tr>
+      <td>${fD(t.date)}</td><td class="fw6">${H(t.from||'?')}→${H(t.to||'?')}</td>
+      <td class="tr">${INR(c.income)}</td><td class="tr">${INR(c.exp)}</td>
+      <td class="tr fw7 col-r">${INR(c.net)}</td>
+      <td class="tr"><span class="pkm-pill bad">${km2?'₹'+(c.net/km2).toFixed(1)+'/km':'—'}</span></td>
+      <td class="tr">${t.emptyKm?Math.round(t.emptyKm)+'km':'—'}</td>
+    </tr>`;}).join('')}
+    </tbody></table></div>`:
+  '<div class="alert al-gn">✅ No loss-making trips this year!</div>'}
+</div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// MONTHLY FULL REPORT + EXCEL EXPORT
+// ═══════════════════════════════════════════════════
+let mrTid=0,mrMon=new Date().getMonth(),mrYr=new Date().getFullYear();
+function pgMonthly(){
+  document.getElementById('topbar-actions').innerHTML=`
+    <button class="btn" onclick="printMonthly()">🖨 Print</button>
+    <button class="btn btn-success" onclick="exportExcel()">📊 Export Excel/CSV</button>`;
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const trips=(mrTid?DB.trips.filter(t=>t.tid===mrTid):DB.trips).filter(t=>{
+    const d=new Date(t.date);return d.getFullYear()===mrYr&&d.getMonth()===mrMon;
+  });
+  const exps=(mrTid?DB.expenses.filter(e=>e.tid===mrTid):DB.expenses).filter(e=>{
+    const d=new Date(e.date);return d.getFullYear()===mrYr&&d.getMonth()===mrMon;
+  });
+  const fuel2=(mrTid?DB.fuel.filter(f=>f.tid===mrTid):DB.fuel).filter(f=>{
+    const d=new Date(f.date);return d.getFullYear()===mrYr&&d.getMonth()===mrMon;
+  });
+  const s=mStats(mrTid,mrYr,mrMon);
+  const totL=fuel2.reduce((a,f)=>a+(+(f.ltrs)||0),0);
+  const totFC=fuel2.reduce((a,f)=>a+(+(f.totalCost)||0),0);
+  const maintCost=DB.maint.filter(m=>(!mrTid||m.tid===mrTid)&&m.lastDate?.startsWith(mrYr+'-'+String(mrMon+1).padStart(2,'0'))).reduce((a,m)=>a+(+(m.cost)||0),0);
+  const expByCat={};exps.forEach(e=>{expByCat[e.cat]=(expByCat[e.cat]||0)+(+(e.amt)||0);});
+  const totKm=trips.reduce((a,t)=>a+(+(t.km)||0),0);
+  const totEmpty=trips.reduce((a,t)=>a+(+(t.emptyKm)||0),0);
+  return`
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+  <select class="fc" style="width:auto" onchange="mrTid=+this.value;go('monthly')"><option value="0">All Trucks</option>${DB.trucks.map(t=>`<option value="${t.id}" ${mrTid===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select>
+  <select class="fc" style="width:auto" onchange="mrMon=+this.value;go('monthly')">${MN.map((m,i)=>`<option value="${i}" ${mrMon===i?'selected':''}>${m}</option>`).join('')}</select>
+  <select class="fc" style="width:auto" onchange="mrYr=+this.value;go('monthly')">${[mrYr-1,mrYr,mrYr+1].map(y=>`<option ${mrYr===y?'selected':''}>${y}</option>`).join('')}</select>
+  <span class="badge b-bl">${MN[mrMon]} ${mrYr}</span>
+</div>
+<div id="mr-body">
+<div class="g4 mb14">
+  <div class="hmetric hero-blue"><div class="mlabel">Gross Income</div><div class="mval">${INR(s.inc)}</div><div class="msub">${s.trips} trips</div></div>
+  <div class="hmetric ${s.net>=0?'hero-green':'hero-red'}"><div class="mlabel">Net Profit</div><div class="mval">${INR(s.net)}</div><div class="msub">${s.net>=0?'↑ Profitable':'↓ Loss'}</div></div>
+  <div class="hmetric hero-amber"><div class="mlabel">Total Expenses</div><div class="mval">${INR(s.exp)}</div><div class="msub">All costs</div></div>
+  <div class="hmetric hero-purple"><div class="mlabel">KM Driven</div><div class="mval">${Math.round(totKm).toLocaleString('en-IN')}</div><div class="msub">${Math.round(totEmpty)} km empty</div></div>
+</div>
+<div class="g3 mb14">
+  <div class="card">
+    <div class="sdiv">⛽ Fuel Summary</div>
+    <div class="cost-row"><div class="ci"><div class="ci-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">⛽</div><div><div class="fw6">Total Litres</div></div></div><div class="fw7">${totL.toFixed(1)} L</div></div>
+    <div class="cost-row"><div class="ci"><div class="ci-icon" style="background:linear-gradient(135deg,#ef4444,#dc2626)">💰</div><div><div class="fw6">Fuel Cost</div></div></div><div class="fw7">${INR(totFC)}</div></div>
+    <div class="cost-row"><div class="ci"><div class="ci-icon" style="background:linear-gradient(135deg,#10b981,#16a34a)">📈</div><div><div class="fw6">Avg Mileage</div></div></div><div class="fw7">${totL>0&&totKm>0?(totKm/totL).toFixed(2)+' km/L':'—'}</div></div>
+    <div class="cost-row"><div class="ci"><div class="ci-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">🔢</div><div><div class="fw6">Fuel Cost/KM</div></div></div><div class="fw7">${totKm>0?'₹'+(totFC/totKm).toFixed(2):'—'}</div></div>
+  </div>
+  <div class="card">
+    <div class="sdiv">📊 Key Ratios</div>
+    <div class="cost-row"><div><div class="fw6">Cost per KM</div><div class="fs11 col-3">All costs</div></div><div class="fw7">${totKm>0?'₹'+(s.exp/totKm).toFixed(2):'—'}</div></div>
+    <div class="cost-row"><div><div class="fw6">Profit per KM</div><div class="fs11 col-3">Net earning</div></div><div class="fw7 ${s.net>=0?'col-g':'col-r'}">${totKm>0?'₹'+(s.net/totKm).toFixed(2):'—'}</div></div>
+    <div class="cost-row"><div><div class="fw6">Income per Trip</div></div><div class="fw7">${s.trips>0?INR(s.inc/s.trips):'—'}</div></div>
+    <div class="cost-row"><div><div class="fw6">Profit per Trip</div></div><div class="fw7 ${s.net>=0?'col-g':'col-r'}">${s.trips>0?INR(s.net/s.trips):'—'}</div></div>
+    <div class="cost-row"><div><div class="fw6">Profit Margin</div></div><div class="fw7">${s.inc>0?((s.net/s.inc)*100).toFixed(1)+'%':'—'}</div></div>
+    <div class="cost-row"><div><div class="fw6">Empty KM</div><div class="fs11 col-3">of total</div></div><div class="fw7 ${totKm>0&&totEmpty/totKm>0.2?'col-r':'col-g'}">${totKm>0?((totEmpty/totKm)*100).toFixed(1)+'%':'—'}</div></div>
+  </div>
+  <div class="card">
+    <div class="sdiv">🧾 Expenses</div>
+    <div class="cost-row"><div><div class="fw6">Fuel</div></div><div class="fw7">${INR(s.fuel)}</div></div>
+    <div class="cost-row"><div><div class="fw6">Toll</div></div><div class="fw7">${INR(s.toll)}</div></div>
+    <div class="cost-row"><div><div class="fw6">Loading/Unloading</div></div><div class="fw7">${INR(s.load)}</div></div>
+    ${maintCost>0?`<div class="cost-row"><div><div class="fw6">Maintenance</div></div><div class="fw7">${INR(maintCost)}</div></div>`:''}
+    ${Object.entries(expByCat).map(([cat,amt])=>`<div class="cost-row"><div><div class="fw6">${H(cat)}</div></div><div class="fw7">${INR(amt)}</div></div>`).join('')}
+    <div class="cost-row" style="background:#fee2e2"><div><div class="fw7">TOTAL</div></div><div class="fw7 col-r">${INR(s.exp)}</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="fw7 mb10" style="font-size:13px">All Trips — ${MN[mrMon]} ${mrYr}</div>
+  ${trips.length===0?emSt('No trips this month',''):`
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>#</th><th>Date</th><th>Truck</th><th>Route</th><th>Broker</th><th>Goods</th><th>Income</th><th>Fuel</th><th>Toll</th><th>Other</th><th>Total Cost</th><th>NET PROFIT</th><th>KM</th><th>Cost/KM</th><th>Profit/KM</th><th>Empty KM</th><th>Rating</th><th>Pay Status</th></tr></thead>
+    <tbody>
+    ${trips.map(t=>{
+      const c=calcTrip(t);const km2=+(t.km)||0;const ek=+(t.emptyKm)||0;
+      const ppk=km2>0?c.net/km2:0;const cpk=km2>0?c.exp/km2:0;
+      const rat=ppk>20?'🟢 Excellent':ppk>10?'🟢 Good':ppk>0?'🟡 OK':km2===0?'⚪ No KM':'🔴 Loss';
+      return`<tr style="${c.net<0?'background:#fff5f5':''}">
+        <td class="col-3 fs11">${t.id}</td>
+        <td style="white-space:nowrap">${fD(t.date)}</td>
+        <td><span class="badge" style="background:${truckColor(t.tid)}18;color:${truckColor(t.tid)};font-size:10px">${H(truckName(t.tid))}</span></td>
+        <td style="white-space:nowrap;font-weight:600">${H(t.from||'?')}→${H(t.to||'?')}</td>
+        <td>${H(t.broker||'—')}</td>
+        <td>${H(t.goods||'—')}</td>
+        <td class="tr">${INR(c.income)}</td>
+        <td class="tr">${INR(c.fuel)}</td>
+        <td class="tr">${INR(c.toll)}</td>
+        <td class="tr">${INR(c.loading+c.unloading+c.other)}</td>
+        <td class="tr">${INR(c.exp)}</td>
+        <td class="tr fw7" style="color:${c.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(c.net)}</td>
+        <td>${km2?Math.round(km2).toLocaleString('en-IN'):'—'}</td>
+        <td class="tr"><span class="pkm-pill">${km2?'₹'+cpk.toFixed(1)+'/km':'—'}</span></td>
+        <td class="tr"><span class="pkm-pill ${ppk>10?'good':ppk>0?'warn':'bad'}">${km2?'₹'+ppk.toFixed(1)+'/km':'—'}</span></td>
+        <td class="tr col-r">${ek?Math.round(ek)+' km':'—'}</td>
+        <td>${rat}</td>
+        <td><span class="badge ${t.payStatus==='Paid'?'b-gn':t.payStatus==='Partial'?'b-am':'b-rd'}">${t.payStatus||'Pending'}</span></td>
+      </tr>`;}).join('')}
+      <tr style="background:#f1f5f9;font-weight:700;font-size:12px">
+        <td colspan="6">TOTAL — ${trips.length} trips</td>
+        <td class="tr">${INR(s.inc)}</td><td class="tr">${INR(s.fuel)}</td><td class="tr">${INR(s.toll)}</td>
+        <td class="tr">${INR(s.load+s.addl)}</td><td class="tr">${INR(s.exp)}</td>
+        <td class="tr" style="color:${s.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(s.net)}</td>
+        <td>${Math.round(totKm).toLocaleString('en-IN')}</td>
+        <td class="tr">${totKm>0?'₹'+(s.exp/totKm).toFixed(1):'—'}</td>
+        <td class="tr">${totKm>0?'₹'+(s.net/totKm).toFixed(1):'—'}</td>
+        <td class="tr col-r">${Math.round(totEmpty)} km</td><td></td><td></td>
+      </tr>
+    </tbody>
+  </table></div>`}
+</div>
+</div>`;
+}
+function afterMonthly(){}
+
+function printMonthly(){
+  const body=document.getElementById('mr-body');if(!body)return;
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const hdr='<h2 style="margin-bottom:4px;font-family:Segoe UI,sans-serif">Maldar Roadlines — Monthly Report</h2><p style="color:#64748b;margin-bottom:14px;font-family:Segoe UI,sans-serif">'+MN[mrMon]+' '+mrYr+' | Generated: '+new Date().toLocaleString('en-IN')+'</p>';
+  printDoc(hdr+body.innerHTML,'Monthly Report '+MN[mrMon]+' '+mrYr,'landscape');
+}
+
+function exportExcel(){
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const trips=(mrTid?DB.trips.filter(t=>t.tid===mrTid):DB.trips).filter(t=>{
+    const d=new Date(t.date);return d.getFullYear()===mrYr&&d.getMonth()===mrMon;
+  });
+  const s=mStats(mrTid,mrYr,mrMon);
+  const totKm=trips.reduce((a,t)=>a+(+(t.km)||0),0);
+  const totE=trips.reduce((a,t)=>a+(+(t.emptyKm)||0),0);
+  const rows=[];
+  // Header section
+  rows.push(['MALDAR ROADLINES — Monthly Report','','','','','','','','','','','','','','','','','']);
+  rows.push(['Month:',MN[mrMon]+' '+mrYr,'','Generated:',new Date().toLocaleString('en-IN'),'','','','','','','','','','','','','']);
+  rows.push([]);
+  rows.push(['=== SUMMARY ===']);
+  rows.push(['Total Trips',s.trips,'','Gross Income',s.inc,'','Net Profit',s.net]);
+  rows.push(['Total KM',Math.round(totKm),'','Empty KM',Math.round(totE),'','Fuel Cost',s.fuel]);
+  rows.push(['Cost/KM',totKm>0?+(s.exp/totKm).toFixed(2):0,'','Profit/KM',totKm>0?+(s.net/totKm).toFixed(2):0,'','Total Expenses',s.exp]);
+  rows.push([]);
+  rows.push(['=== TRIP DETAILS ===']);
+  rows.push(['Trip#','Date','Truck','From','To','Broker','Goods','Income(₹)','Fuel(₹)','Toll(₹)','Load/Unload(₹)','Other(₹)','Total Cost(₹)','Net Profit(₹)','KM','Cost/KM(₹)','Profit/KM(₹)','Empty KM','Pay Status','Pending(₹)','Rating']);
+  trips.forEach(t=>{
+    const c=calcTrip(t);const km2=+(t.km)||0;const ek=+(t.emptyKm)||0;
+    const ppk=km2>0?+(c.net/km2).toFixed(2):0;const cpk=km2>0?+(c.exp/km2).toFixed(2):0;
+    const rat=ppk>20?'Excellent':ppk>10?'Good':ppk>0?'OK':km2===0?'No KM data':'LOSS';
+    rows.push([t.id,t.date,truckName(t.tid),t.from||'',t.to||'',t.broker||'',t.goods||'',c.income,c.fuel,c.toll,c.loading+c.unloading,c.other,c.exp,c.net,km2,cpk,ppk,ek,t.payStatus||'Pending',t.pending||0,rat]);
+  });
+  // Totals row
+  rows.push(['','TOTALS','','','','','',s.inc,s.fuel,s.toll,s.load,s.addl,s.exp,s.net,Math.round(totKm),'','',Math.round(totE),'','','']);
+  rows.push([]);
+  rows.push(['=== LOSS-MAKING TRIPS ===']);
+  const loss=trips.filter(t=>calcTrip(t).net<0);
+  if(loss.length){
+    rows.push(['Trip#','Date','Route','Income(₹)','Cost(₹)','Loss(₹)','Empty KM']);
+    loss.forEach(t=>{const c=calcTrip(t);rows.push([t.id,t.date,(t.from||'?')+'→'+(t.to||'?'),c.income,c.exp,c.net,t.emptyKm||0]);});
+  } else rows.push(['No loss-making trips this month ✓']);
+  // Build CSV
+  const csv=rows.map(r=>r.map(v=>`"${String(v===null||v===undefined?'':v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='Maldar_'+MN[mrMon]+'_'+mrYr+'.csv';
+  a.click();
+  log('Excel Export','Monthly '+MN[mrMon]+' '+mrYr);
+}
+
+
+// ═══════════════════════════════════════════════════
+// QUOTATION & PROFORMA INVOICE
+// ═══════════════════════════════════════════════════
+let qtType='Quotation';
+function pgQuotation(){
+  document.getElementById('topbar-actions').innerHTML=`
+    <select class="fc" style="width:auto" onchange="qtType=this.value;go('quotation')">
+      <option ${qtType==='Quotation'?'selected':''}>Quotation</option>
+      <option ${qtType==='Proforma Invoice'?'selected':''}>Proforma Invoice</option>
+      <option ${qtType==='Service Agreement'?'selected':''}>Service Agreement</option>
+    </select>
+    <button class="btn btn-primary" onclick="printQuotation()">🖨 Print / Share</button>`;
+
+  const owner=DB.owner||{};
+  const truck=DB.trucks[0]||{};
+  return`
+<div class="g2">
+<div>
+<div class="card mb12">
+  <div class="sdiv">${qtType} Details</div>
+  <div class="fg"><label class="fl">Document Number</label>
+    <input type="text" class="fc" id="qt-no" value="${qtType==='Quotation'?'QT':'PI'}-${String(Date.now()).slice(-4)}" placeholder="QT-0001"></div>
+  <div class="fr2">
+    <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="qt-date" value="${today()}"></div>
+    <div class="fg"><label class="fl">Valid Till</label><input type="date" class="fc" id="qt-valid"></div>
+  </div>
+</div>
+<div class="card mb12">
+  <div class="sdiv">Client / Company Details</div>
+  <div class="fg"><label class="fl">Company / Client Name <span class="req">*</span></label>
+    <input type="text" class="fc" id="qt-cname" placeholder="ABC Industries Pvt Ltd"></div>
+  <div class="fg"><label class="fl">Contact Person</label>
+    <input type="text" class="fc" id="qt-cperson" placeholder="Mr. Rajesh Kumar"></div>
+  <div class="fr2">
+    <div class="fg"><label class="fl">Phone</label><input type="text" class="fc" id="qt-cphone" placeholder="9876543210"></div>
+    <div class="fg"><label class="fl">Email</label><input type="text" class="fc" id="qt-cemail" placeholder="email@company.com"></div>
+  </div>
+  <div class="fg"><label class="fl">Company Address</label>
+    <textarea class="fc" id="qt-caddr" rows="2" placeholder="Full address with city, state, PIN"></textarea></div>
+  <div class="fg"><label class="fl">GST Number</label><input type="text" class="fc" id="qt-cgst" placeholder="27XXXXX1234Z1"></div>
+</div>
+<div class="card mb12">
+  <div class="sdiv">Route & Service Details</div>
+  <div class="fr2">
+    <div class="fg"><label class="fl">From (Loading Point)</label><input type="text" class="fc" id="qt-from" placeholder="Hyderabad"></div>
+    <div class="fg"><label class="fl">To (Delivery Point)</label><input type="text" class="fc" id="qt-to" placeholder="Chandrapur"></div>
+  </div>
+  <div class="fr2">
+    <div class="fg"><label class="fl">Goods / Material</label><input type="text" class="fc" id="qt-goods" placeholder="Coal / Wheat / Parcel"></div>
+    <div class="fg"><label class="fl">Approx Weight</label><input type="text" class="fc" id="qt-wt" placeholder="25 Tonnes per trip"></div>
+  </div>
+  <div class="fr3">
+    <div class="fg"><label class="fl">Rate Type</label>
+      <select class="fc" id="qt-rtype"><option>Per Trip</option><option>Per Tonne</option><option>Per Bag</option><option>Per Day</option><option>Monthly Contract</option></select>
+    </div>
+    <div class="fg"><label class="fl">Rate (₹)</label><input type="number" class="fc" id="qt-rate" placeholder="0" min="0"></div>
+    <div class="fg"><label class="fl">No. of Trips/Month</label><input type="number" class="fc" id="qt-trips" placeholder="8" min="1"></div>
+  </div>
+  <div class="fg"><label class="fl">Additional Charges (Toll, Loading, etc.)</label>
+    <input type="text" class="fc" id="qt-extra" placeholder="Toll actual + Loading ₹500 per trip"></div>
+  <div class="fg"><label class="fl">Contract Period</label>
+    <input type="text" class="fc" id="qt-period" placeholder="3 months / 1 year / Ongoing"></div>
+  <div class="fg"><label class="fl">Special Notes / Terms</label>
+    <textarea class="fc" id="qt-notes" rows="3" placeholder="Payment terms, diesel clause, route conditions..."></textarea></div>
+  <button class="btn btn-primary" style="width:100%;margin-top:6px" onclick="go('quotation')">Preview Document →</button>
+</div>
+</div>
+<div id="qt-preview">${genQuotation()}</div>
+</div>`;
+}
+
+function gv(id){return(document.getElementById(id)?.value||'').trim();}
+function gn(id){return+(document.getElementById(id)?.value||0);}
+
+function genQuotation(){
+  const owner=DB.owner||{};
+  const truck=DB.trucks[0]||{};
+  const docNo=gv('qt-no')||'QT-0001';
+  const date=gv('qt-date')||today();
+  const valid=gv('qt-valid');
+  const cname=gv('qt-cname')||'[Client Name]';
+  const cperson=gv('qt-cperson');
+  const cphone=gv('qt-cphone');
+  const cemail=gv('qt-cemail');
+  const caddr=gv('qt-caddr');
+  const cgst=gv('qt-cgst');
+  const from=gv('qt-from')||'—';
+  const to=gv('qt-to')||'—';
+  const goods=gv('qt-goods')||'—';
+  const wt=gv('qt-wt')||'—';
+  const rtype=gv('qt-rtype')||'Per Trip';
+  const rate=gn('qt-rate');
+  const trips=gn('qt-trips')||1;
+  const extra=gv('qt-extra');
+  const period=gv('qt-period');
+  const notes=gv('qt-notes');
+  const monthlyVal=rate*trips;
+  const isDark=qtType==='Quotation';
+  const hdrBg=isDark?'linear-gradient(135deg,#1e3a8a,#1e40af)':qtType==='Proforma Invoice'?'linear-gradient(135deg,#065f46,#0d9488)':'linear-gradient(135deg,#581c87,#7c3aed)';
+
+  return`<div id="qt-doc" style="font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#111;background:#fff;border:1.5px solid #1e40af;border-radius:8px;overflow:hidden;max-width:780px">
+  <!-- HEADER -->
+  <div style="background:${hdrBg};color:#fff;padding:12px 18px;display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:44px;height:44px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">🚛</div>
+      <div>
+        <div style="font-size:18px;font-weight:900;letter-spacing:-.3px">MALDAR ROADLINES</div>
+        <div style="font-size:10px;opacity:.8">Goods Transport · Logistics · Hyderabad, Telangana</div>
+        <div style="font-size:10px;opacity:.8">${H(owner.phone||'')} | GST: ${H(owner.gst||'—')} | ${H(owner.address||'Hyderabad')}</div>
+      </div>
+    </div>
+    <div style="text-align:right;background:rgba(255,255,255,.12);border-radius:6px;padding:8px 14px">
+      <div style="font-size:10px;opacity:.8;text-transform:uppercase;letter-spacing:.8px">${qtType}</div>
+      <div style="font-size:20px;font-weight:900">${H(docNo)}</div>
+      <div style="font-size:10px;opacity:.8">Date: ${fD(date)}${valid?' | Valid: '+fD(valid):''}</div>
+    </div>
+  </div>
+  <!-- TO / FROM -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #dde1ee">
+    <div style="padding:10px 16px;border-right:1px solid #dde1ee">
+      <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">TO (Client Details)</div>
+      <div style="font-weight:800;font-size:13px">${H(cname)}</div>
+      ${cperson?`<div style="font-size:11px;margin-top:2px">Attn: ${H(cperson)}</div>`:''}
+      ${cphone?`<div style="font-size:11px;color:#475569">📞 ${H(cphone)}</div>`:''}
+      ${cemail?`<div style="font-size:11px;color:#475569">✉ ${H(cemail)}</div>`:''}
+      ${caddr?`<div style="font-size:10px;color:#64748b;margin-top:3px">${H(caddr)}</div>`:''}
+      ${cgst?`<div style="font-size:10px;color:#475569;margin-top:2px">GST: ${H(cgst)}</div>`:''}
+    </div>
+    <div style="padding:10px 16px">
+      <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">FROM (Service Provider)</div>
+      <div style="font-weight:800;font-size:13px">Maldar Roadlines</div>
+      <div style="font-size:11px;color:#475569">${H(owner.address||'Hyderabad, Telangana')}</div>
+      <div style="font-size:11px;color:#475569">📞 ${H(owner.phone||'—')}</div>
+      ${owner.gst?`<div style="font-size:10px;color:#475569">GST: ${H(owner.gst)}</div>`:''}
+      <div style="font-size:11px;margin-top:4px">Truck: <b>${H(truck.reg||'TS01UA9828')}</b> (${H(truck.type||'12-Tyre HCV')})</div>
+    </div>
+  </div>
+  <!-- SERVICE TABLE -->
+  <div style="padding:10px 16px;border-bottom:1px solid #dde1ee">
+    <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Transport Service Details</div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="background:#f8fafc">
+          <th style="padding:7px 10px;text-align:left;border:1px solid #dde1ee;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">#</th>
+          <th style="padding:7px 10px;text-align:left;border:1px solid #dde1ee;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Service Description</th>
+          <th style="padding:7px 10px;text-align:center;border:1px solid #dde1ee;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Route</th>
+          <th style="padding:7px 10px;text-align:center;border:1px solid #dde1ee;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Qty/Trips</th>
+          <th style="padding:7px 10px;text-align:right;border:1px solid #dde1ee;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Rate (${H(rtype)})</th>
+          <th style="padding:7px 10px;text-align:right;border:1px solid #dde1ee;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Amount (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;text-align:center">1</td>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;font-weight:700">
+            Road Transport Service — ${H(goods)}<br>
+            <span style="font-size:10px;color:#64748b;font-weight:400">Approx weight: ${H(wt)} per trip | ${H(period||'As required')}</span>
+          </td>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;text-align:center;font-weight:600">${H(from)} → ${H(to)}</td>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;text-align:center">${trips} trips</td>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;text-align:right">${INR(rate)}</td>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;text-align:right;font-weight:800;font-size:13px;color:#1e40af">${INR(monthlyVal)}</td>
+        </tr>
+        ${extra?`<tr style="background:#f8fafc"><td style="padding:7px 10px;border:1px solid #dde1ee;text-align:center">2</td><td colspan="4" style="padding:7px 10px;border:1px solid #dde1ee;color:#475569">Additional Charges: ${H(extra)}</td><td style="padding:7px 10px;border:1px solid #dde1ee;text-align:right;color:#475569">Actual</td></tr>`:''}
+      </tbody>
+      <tfoot>
+        <tr style="background:#eff6ff">
+          <td colspan="5" style="padding:9px 10px;border:1px solid #dde1ee;text-align:right;font-weight:800;font-size:12px">ESTIMATED TOTAL (per month / ${trips} trips)</td>
+          <td style="padding:9px 10px;border:1px solid #dde1ee;text-align:right;font-weight:900;font-size:14px;color:#1e40af">${INR(monthlyVal)}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <!-- TERMS -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #dde1ee">
+    <div style="padding:10px 16px;border-right:1px solid #dde1ee">
+      <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">Terms & Conditions</div>
+      <div style="font-size:10px;color:#475569;line-height:1.7">
+        • Payment: Within 7 days of delivery / as agreed<br>
+        • Diesel price variation: Rate revision applicable if diesel changes &gt;₹5/L<br>
+        • Loading/Unloading by client unless specified<br>
+        • Toll, weighbridge charges extra unless included<br>
+        • Cancellation: 48 hours notice required<br>
+        ${notes?'• '+H(notes.replace(/\n/g,'<br>• ')):''}
+      </div>
+    </div>
+    <div style="padding:10px 16px">
+      <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">Payment Details</div>
+      ${owner.bank?`<div style="font-size:10px;color:#475569;margin-bottom:3px">Bank: <b>${H(owner.bank)}</b></div>
+      <div style="font-size:10px;color:#475569;margin-bottom:3px">A/c No: <b>${H(owner.acc||'—')}</b></div>
+      <div style="font-size:10px;color:#475569;margin-bottom:3px">IFSC: <b>${H(owner.ifsc||'—')}</b></div>`:'<div style="font-size:10px;color:#94a3b8">Add bank details in Settings</div>'}
+      ${owner.upi?`<div style="font-size:10px;color:#475569;margin-top:4px">UPI: <b>${H(owner.upi)}</b></div>`:''}
+      <div style="margin-top:10px;padding:6px 10px;background:#f0fdf4;border-radius:6px;border:1px solid #bbf7d0">
+        <div style="font-size:10px;font-weight:700;color:#15803d">Quoted by: Maldar Roadlines</div>
+        <div style="font-size:10px;color:#15803d">${H(owner.phone||'')} | ${H(owner.address||'Hyderabad')}</div>
+      </div>
+    </div>
+  </div>
+  <!-- SIGNATURES -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;padding:12px 16px;gap:20px">
+    <div>
+      <div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:3px">CLIENT ACCEPTANCE</div>
+      <div style="font-size:10px;color:#64748b">Sign & stamp to confirm acceptance of this ${qtType.toLowerCase()}</div>
+      <div style="height:32px;border-bottom:1px solid #0f172a;margin-top:10px"></div>
+      <div style="font-size:9px;color:#64748b;margin-top:3px">Signature / Stamp | Date: ___________</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:3px">FOR MALDAR ROADLINES</div>
+      <div style="font-size:10px;color:#64748b">Authorised Signatory</div>
+      <div style="height:32px;border-bottom:1px solid #1e40af;margin-top:10px"></div>
+      <div style="font-size:9px;font-weight:700;color:#1e40af;margin-top:3px">Maldar Roadlines | Hyderabad</div>
+    </div>
+  </div>
+</div>`;
+}
+
+function printQuotation(){
+  const el=document.getElementById('qt-doc');
+  if(!el){alert('Fill the details and click Preview first.');return;}
+  printDoc(el.outerHTML,'Quotation - Maldar Roadlines','landscape');
 }
 
 // ═══════════════════════════════════════════════════
