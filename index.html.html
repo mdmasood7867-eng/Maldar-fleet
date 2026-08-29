@@ -2015,7 +2015,7 @@ function pgSav(){
 function openSavContrib(id){
   EID=id;const s=DB.savings.find(x=>x.id===id)||{};
   OM('Add to: '+H(s.goal||''),`<div class="infobox">Saved: ${INR(s.saved)} · Goal: ${INR(s.total)}</div><div class="fg"><label class="fl">Amount (₹)</label><input type="number" class="fc" id="sc-a" placeholder="0" min="0"></div>`,
-  ()=>{const add=nv('sc-a');if(add<=0){alert('Enter amount > 0.');return;}const i=DB.savings.findIndex(x=>x.id===EID);if(i>=0)DB.savings[i].saved=(+(DB.savings[i].saved)||0)+add;log('Savings',INR(add)+' added to '+s.goal);save();CM();go('sav');});
+  ()=>{const add=nv('sc-a');if(add<=0){alert('Enter amount > 0.');return;}const i=DB.savings.findIndex(x=>x.id===EID);if(i>=0)DB.savings[i].saved=(+(DB.savings[i].saved)||0)+add;log('Savings',INR(add)+' added to '+s.goal);save();CM();go('savings');});
 }
 function openSavEdit(id){
   EID=id;const s=DB.savings.find(x=>x.id===id)||{};
@@ -2026,7 +2026,7 @@ function openSavEdit(id){
       <div class="fg"><label class="fl">Monthly Target (₹)</label><input type="number" class="fc" id="sg-mt" value="${s.target||0}"></div>
     </div>
     <div class="fg"><label class="fl">Total Saved (₹)</label><input type="number" class="fc" id="sg-s" value="${s.saved||0}"></div>`,
-  ()=>{const i=DB.savings.findIndex(x=>x.id===EID);if(i>=0)DB.savings[i]={...DB.savings[i],goal:sv('sg-n'),total:nv('sg-t'),target:nv('sg-mt'),saved:nv('sg-s')};save();CM();go('sav');});
+  ()=>{const i=DB.savings.findIndex(x=>x.id===EID);if(i>=0)DB.savings[i]={...DB.savings[i],goal:sv('sg-n'),total:nv('sg-t'),target:nv('sg-mt'),saved:nv('sg-s')};save();CM();go('savings');});
 }
 function openNewSavModal(){
   OM('New Savings Goal',`
@@ -2035,7 +2035,7 @@ function openNewSavModal(){
       <div class="fg"><label class="fl">Total Goal (₹)</label><input type="number" class="fc" id="ns-t" value="0"></div>
       <div class="fg"><label class="fl">Monthly Target (₹)</label><input type="number" class="fc" id="ns-mt" value="0"></div>
     </div>`,
-  ()=>{const n=sv('ns-n');if(!n){alert('Enter goal name.');return;}DB.savings.push({id:nid(DB.savings),goal:n,total:nv('ns-t'),target:nv('ns-mt'),saved:0});save();CM();go('sav');});
+  ()=>{const n=sv('ns-n');if(!n){alert('Enter goal name.');return;}DB.savings.push({id:nid(DB.savings),goal:n,total:nv('ns-t'),target:nv('ns-mt'),saved:0});save();CM();go('savings');});
 }
 
 // ═══════════════════════════════════════════════════
