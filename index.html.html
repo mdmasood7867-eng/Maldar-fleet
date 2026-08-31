@@ -2773,7 +2773,7 @@ function genBilty(trip){
 function printBilty(){
   const el=document.getElementById('bilty-doc');
   if(!el){alert('Fill the bilty details and click Preview first, then print.');return;}
-  printDoc(el.outerHTML,'A5 Bilty - Maldar Roadlines','landscape');
+  printDoc(el.outerHTML,'Bilty - Maldar Roadlines','landscape','A5');
 }
 function shareBiltyWhatsApp(){
   const el=document.getElementById('bilty-doc');
@@ -2788,13 +2788,15 @@ function shareBiltyWhatsApp(){
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
 }
 
-function printDoc(html,title,orientation){
+function printDoc(html,title,orientation,pageSize){
   // Remove any existing print iframe
   const old=document.getElementById('_pf');if(old)old.remove();
+  const ps=(pageSize||'A5')+' '+(orientation||'portrait');
+  const mg=pageSize==='A4'?'12mm':'8mm';
   const css=`
-    @page{size:A5 ${orientation||'portrait'};margin:8mm}
+    @page{size:${ps};margin:${mg}}
     *{box-sizing:border-box}
-    body{margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;font-size:${pageSize==='A4'?'12px':'11px'};color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .card{border:none!important;box-shadow:none!important;padding:0!important}
   `;
   const iframe=document.createElement('iframe');
@@ -2923,7 +2925,7 @@ function saveSal(){
 function printSalSlip(){
   const el=document.getElementById('sal-slip');
   if(!el){alert('No slip to print.');return;}
-  printDoc(el.innerHTML,'Salary Slip - Maldar Roadlines','portrait');
+  printDoc(el.innerHTML,'Salary Slip - Maldar Roadlines','portrait','A4');
 }
 
 // ═══════════════════════════════════════════════════
@@ -3107,7 +3109,7 @@ function printMonthly(){
   const body=document.getElementById('mr-body');if(!body)return;
   const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const hdr='<h2 style="margin-bottom:4px;font-family:Segoe UI,sans-serif">Maldar Roadlines — Monthly Report</h2><p style="color:#64748b;margin-bottom:14px;font-family:Segoe UI,sans-serif">'+MN[mrMon]+' '+mrYr+' | Generated: '+new Date().toLocaleString('en-IN')+'</p>';
-  printDoc(hdr+body.innerHTML,'Monthly Report '+MN[mrMon]+' '+mrYr,'landscape');
+  printDoc(hdr+body.innerHTML,'Monthly Report '+MN[mrMon]+' '+mrYr,'landscape','A4');
 }
 
 function exportExcel(){
@@ -3378,7 +3380,7 @@ function genQuotation(){
 function printQuotation(){
   const el=document.getElementById('qt-doc');
   if(!el){alert('Fill the details and click Preview first.');return;}
-  printDoc(el.outerHTML,'Quotation - Maldar Roadlines','landscape');
+  printDoc(el.outerHTML,'Quotation - Maldar Roadlines','portrait','A4');
 }
 function shareQuotationWhatsApp(){
   const el=document.getElementById('qt-doc');
@@ -3417,7 +3419,7 @@ function convertQuotationToBilty(){
 function printBankReport(){
   const el=document.getElementById('bank-report-body');
   if(!el){alert('Report not loaded.');return;}
-  printDoc(el.outerHTML,'Bank Report - Maldar Roadlines','portrait');
+  printDoc(el.outerHTML,'Bank Report - Maldar Roadlines','portrait','A4');
 }
 
 // ═══════════════════════════════════════════════════
