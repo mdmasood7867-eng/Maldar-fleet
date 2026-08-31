@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -461,6 +462,7 @@ function migrate(d){
     if(!Array.isArray(d[k]))d[k]=f[k];
   });
   if(!d.trucks||!d.trucks.length)d.trucks=f.trucks;
+  if(!Array.isArray(d.salarySettlements))d.salarySettlements=[];
   (d.trips||[]).forEach(t=>{
     if(t.payStatus===undefined)t.payStatus='Pending';
     if(t.recv===undefined)t.recv=0;
@@ -659,11 +661,73 @@ function pgDash(){
 
   document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="go('quick')">+ Quick Entry</button>`;
 
-  const urgentAlerts=[...docAlerts.filter(d=>d.days<0||d.days<30),...maintAlerts.filter(m=>m.rem<=0)];
+
+  // overdue payments >7 days
+  const now3=new Date();
+  const overduePayments=DB.trips.filter(t=>{
+    if(selTruck&&t.tid!==selTruck)return false;
+    if((t.payStatus||'')=='Paid')return false;
+    if(!t.date)return false;
+    return Math.floor((now3-new Date(t.date))/864e5)>7&&+(t.pending||0)>0;
+  }).map(t=>({...t,daysOld:Math.floor((now3-new Date(t.date))/864e5)}));
+
+  // tyre alerts
+  const tyreAlerts=DB.tyres.filter(ty=>{
+    if(selTruck&&ty.tid!==selTruck)return false;
+    if(ty.status!=='In Use')return false;
+    const o=odo(ty.tid);
+    const used=+(ty.rem)>0?+(ty.rem)-+(ty.fit):(o>+(ty.fit)&&+(ty.fit)>0?o-+(ty.fit):0);
+    return+(ty.exp)>0&&Math.round(used/+(ty.exp)*100)>=70;
+  }).map(ty=>{
+    const o=odo(ty.tid);
+    const used=+(ty.rem)>0?+(ty.rem)-+(ty.fit):(o>+(ty.fit)&&+(ty.fit)>0?o-+(ty.fit):0);
+    const pct=+(ty.exp)>0?Math.round(used/+(ty.exp)*100):0;
+    return{...ty,pct,truck:truckName(ty.tid)};
+  });
+
+  const allUrgent=[
+    ...docAlerts.filter(d=>d.days<0).map(d=>({sev:'rd',icon:'📄',msg:d.name+' EXPIRED ('+d.truck+')',action:"go('docs')",actionLbl:'Renew'})),
+    ...docAlerts.filter(d=>d.days>=0&&d.days<30).map(d=>({sev:'am',icon:'📄',msg:d.name+' expiring in '+d.days+' days ('+d.truck+')',action:"go('docs')",actionLbl:'Renew'})),
+    ...maintAlerts.filter(m=>m.rem<=0).map(m=>({sev:'rd',icon:'🔧',msg:m.item+' OVERDUE ('+m.truck+') — '+KM(Math.abs(m.rem))+' past due',action:"go('maint')",actionLbl:'Service'})),
+    ...maintAlerts.filter(m=>m.rem>0&&m.rem<2000).map(m=>({sev:'am',icon:'🔧',msg:m.item+' due soon ('+m.truck+') — '+KM(m.rem)+' left',action:"go('maint')",actionLbl:'Plan'})),
+    ...tyreAlerts.filter(t=>t.pct>=85).map(t=>({sev:'rd',icon:'🛞',msg:'Tyre '+t.pos+' ('+t.truck+') — '+t.pct+'% life used, REPLACE NOW',action:"go('tyres')",actionLbl:'Replace'})),
+    ...tyreAlerts.filter(t=>t.pct>=70&&t.pct<85).map(t=>({sev:'am',icon:'🛞',msg:'Tyre '+t.pos+' ('+t.truck+') — '+t.pct+'% life, order soon',action:"go('tyres')",actionLbl:'Order'})),
+    ...overduePayments.slice(0,5).map(p=>({sev:'am',icon:'💰',msg:'₹'+Math.round(+(p.pending||0)).toLocaleString('en-IN')+' pending from '+(p.broker||'client')+' — '+p.daysOld+' days old',action:"go('recv')",actionLbl:'Collect'})),
+  ];
+  const redAlerts=allUrgent.filter(a=>a.sev==='rd');
+  const amAlerts=allUrgent.filter(a=>a.sev==='am');
+
+  function buildAlertRow(a){
+    const bg=a.sev==='rd'?'var(--redbg)':'var(--amberbg)';
+    const border=a.sev==='rd'?'var(--red)':'var(--amber)';
+    const txtcol=a.sev==='rd'?'var(--redtxt)':'var(--ambertxt)';
+    const btncls=a.sev==='rd'?'btn-danger':'btn-amber';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:'+bg+';border-radius:var(--r);margin-bottom:4px;border-left:3px solid '+border+'">'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+      '<span style="font-size:14px">'+a.icon+'</span>'+
+      '<span style="font-size:12px;font-weight:600;color:'+txtcol+'">'+H(a.msg)+'</span></div>'+
+      '<button class="btn btn-sm '+btncls+'" onclick="'+a.action+'">'+a.actionLbl+'</button></div>';
+  }
+  const alertPanelHTML=(()=>{
+    if(!allUrgent.length)return '';
+    const bc=redAlerts.length>0?'var(--red)':'var(--amber)';
+    const hbg=redAlerts.length>0?'var(--redbg)':'var(--amberbg)';
+    const htxt=redAlerts.length>0?'var(--redtxt)':'var(--ambertxt)';
+    const hicon=redAlerts.length>0?'🚨':'⚠️';
+    const hmsg=redAlerts.length>0?redAlerts.length+' URGENT Alert'+(redAlerts.length>1?'s':'')+' — Action Required Now':amAlerts.length+' Warning'+(amAlerts.length>1?'s':'')+' — Plan Ahead';
+    return '<div class="card mb14" style="border:1.5px solid '+bc+';padding:14px">'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'+
+      '<div style="width:34px;height:34px;background:'+hbg+';border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">'+hicon+'</div>'+
+      '<div><div class="fw7" style="font-size:13px;color:'+htxt+'">'+hmsg+'</div>'+
+      '<div class="fs11 col-3">'+allUrgent.length+' total items need your attention</div></div></div>'+
+      (redAlerts.length>0?'<div style="margin-bottom:6px">'+redAlerts.map(buildAlertRow).join('')+'</div>':'')+
+      (amAlerts.length>0?'<div>'+amAlerts.map(buildAlertRow).join('')+'</div>':'')+
+      '</div>';
+  })();
 
   return`
 ${truckSel("go('dashboard')")}
-${urgentAlerts.length?`<div class="alert al-rd mb12">🚨 ${urgentAlerts.length} urgent alert${urgentAlerts.length>1?'s':''}: ${urgentAlerts.slice(0,2).map(a=>a.name||a.item).join(', ')}${urgentAlerts.length>2?' and more...':''}. <a href="#" onclick="go('docs');return false">Check documents</a> | <a href="#" onclick="go('maint');return false">Check maintenance</a></div>`:''}
+${alertPanelHTML}
 
 <div class="g4 mb14">
   <div class="hmetric hero-blue"><div class="mlabel">This Month Income</div><div class="mval">${INR(ms.inc)}</div><div class="msub">${ms.trips} trips completed</div></div>
@@ -1647,39 +1711,129 @@ function pgTyres(){
   const truckTabs=`<div class="truck-tabs mb12">${DB.trucks.map(t=>`<button class="truck-tab${tyTid===t.id?' active':''}" onclick="tyTid=${t.id};go('tyres')">${H(t.reg)}</button>`).join('')}</div>`;
   const curOdo=odo(tyTid);
   const tyres2=DB.tyres.filter(t=>t.tid===tyTid);
+
+  // brand analysis
+  const brandMap={};
+  tyres2.forEach(t=>{
+    if(!t.brand)return;
+    const b=t.brand.trim();
+    if(!brandMap[b])brandMap[b]={brand:b,count:0,totalCost:0,totalExp:0,cpr:[]};
+    brandMap[b].count++;
+    brandMap[b].totalCost+=+(t.cost)||0;
+    brandMap[b].totalExp+=+(t.exp)||0;
+    if(t.cost>0&&t.exp>0)brandMap[b].cpr.push(t.cost/t.exp);
+  });
+  const brands=Object.values(brandMap).sort((a,b2)=>{
+    const ac=a.cpr.length?a.cpr.reduce((s,v)=>s+v,0)/a.cpr.length:999;
+    const bc=b2.cpr.length?b2.cpr.reduce((s,v)=>s+v,0)/b2.cpr.length:999;
+    return ac-bc;
+  });
+
+  // per-tyre calcs
   const rows=tyres2.map(t=>{
-    const used=t.rem>0?t.rem-t.fit:(curOdo>t.fit&&t.fit>0?curOdo-t.fit:0);
-    const pct=t.exp>0?Math.round(used/t.exp*100):0;
+    const used=t.rem>0?+(t.rem)-+(t.fit):(curOdo>+(t.fit)&&+(t.fit)>0?curOdo-+(t.fit):0);
+    const pct=+(t.exp)>0?Math.round(used/+(t.exp)*100):0;
     const cls=pct>=85?'rd':pct>=70?'am':'gn';
-    const cpr=t.cost>0&&t.exp>0?(t.cost/t.exp).toFixed(2):'—';
-    return`<tr>
-      <td class="fw6">${H(t.pos)}</td>
-      <td>${H(t.brand||'—')}</td>
+    const cpr=+(t.cost)>0&&+(t.exp)>0?(+(t.cost)/+(t.exp)).toFixed(3):'—';
+    const remKm=Math.max(0,+(t.exp||0)-used);
+    const alert=pct>=85?'🔴 REPLACE NOW':pct>=70?'🟡 ORDER SOON':'✅ OK';
+    return`<tr style="${pct>=85?'background:#fff5f5':pct>=70?'background:#fffbeb':''}">
+      <td class="fw7">${H(t.pos)}</td>
+      <td class="fw6">${H(t.brand||'—')}</td>
       <td><span class="badge ${t.status==='In Use'?'b-gn':t.status==='Empty'?'b-gr':'b-am'}">${H(t.status||'Empty')}</span></td>
-      <td class="tr">${INR(t.cost)}</td>
-      <td>${KM(used)}</td>
-      <td>${KM(t.exp)}</td>
+      <td class="tr">${+(t.cost)>0?INR(+(t.cost)):'—'}</td>
+      <td class="tr">${+(t.fit)>0?KM(+(t.fit)):'—'}</td>
+      <td class="tr">${used>0?KM(used):'—'}</td>
+      <td class="tr col-3">${KM(+(t.exp)||0)}</td>
+      <td class="tr">${remKm>0?KM(remKm):'—'}</td>
       <td>
         <div style="display:flex;align-items:center;gap:6px">
-          <div class="pw" style="width:72px"><div class="pf ${cls}" style="width:${Math.min(pct,100)}%"></div></div>
-          <span style="font-size:11px;font-weight:600">${pct}%</span>
+          <div class="pw" style="width:70px"><div class="pf ${cls}" style="width:${Math.min(pct,100)}%"></div></div>
+          <span style="font-size:11px;font-weight:700;color:${pct>=85?'var(--redtxt)':pct>=70?'var(--ambertxt)':'var(--greentxt)'}">${pct}%</span>
         </div>
       </td>
-      <td><span class="badge b-${cls}">${pct>=85?'REPLACE':pct>=70?'WATCH':'OK'}</span></td>
-      <td>${cpr!=='—'?'₹'+cpr+'/km':'—'}</td>
+      <td>${alert}</td>
+      <td class="tr">${cpr!=='—'?'₹'+cpr+'/km':'—'}</td>
       <td><button class="btn btn-sm" onclick="openTyreModal(${t.id})">Edit</button></td>
     </tr>`;
   }).join('');
+
   const totCost=tyres2.reduce((s,t)=>s+(+(t.cost)||0),0);
   const totExp=tyres2.reduce((s,t)=>s+(+(t.exp)||0),0);
   const costPKM=totExp>0?(totCost/totExp).toFixed(3):'—';
+  const needReplace=tyres2.filter(t=>{const u=+(t.rem)>0?+(t.rem)-+(t.fit):(curOdo>+(t.fit)&&+(t.fit)>0?curOdo-+(t.fit):0);return+(t.exp)>0&&Math.round(u/+(t.exp)*100)>=85;}).length;
+  const watchTyres=tyres2.filter(t=>{const u=+(t.rem)>0?+(t.rem)-+(t.fit):(curOdo>+(t.fit)&&+(t.fit)>0?curOdo-+(t.fit):0);const p=+(t.exp)>0?Math.round(u/+(t.exp)*100):0;return p>=70&&p<85;}).length;
+
+  // avg monthly km for budget planner
+  const allT2=DB.trips.filter(x=>x.tid===tyTid);
+  const totKM2=allT2.reduce((s,x)=>s+(+(x.km)||0),0);
+  const months2=Math.max(1,new Set(allT2.map(x=>x.date?.slice(0,7))).size);
+  const kpMonth=totKM2/months2;
+
   return`
 ${truckTabs}
-<div class="alert al-bl mb12">Odometer: <strong>${KM(curOdo)}</strong> · Fleet tyre cost/km: <strong>${costPKM!=='—'?'₹'+costPKM:'—'}</strong> · Alert at 85% life used</div>
-<div class="tbl-wrap"><table>
-<thead><tr><th>Position</th><th>Brand</th><th>Status</th><th>Cost</th><th>KM Used</th><th>Expected Life</th><th>Life Used</th><th>Alert</th><th>₹/KM</th><th></th></tr></thead>
-<tbody>${rows}</tbody>
-</table></div>`;
+<div class="g4 mb14">
+  <div class="metric bl"><div class="mlabel">Odometer</div><div class="mval">${KM(curOdo)}</div><div class="msub">Current reading</div></div>
+  <div class="metric ${needReplace>0?'rd':'gn'}"><div class="mlabel">Replace Now</div><div class="mval">${needReplace}</div><div class="msub">At 85%+ life</div></div>
+  <div class="metric ${watchTyres>0?'am':''}"><div class="mlabel">Watch Closely</div><div class="mval">${watchTyres}</div><div class="msub">At 70-85%</div></div>
+  <div class="metric"><div class="mlabel">Fleet Cost/KM</div><div class="mval">${costPKM!=='—'?'₹'+costPKM+'/km':'—'}</div><div class="msub">All tyres avg</div></div>
+</div>
+${needReplace>0?`<div class="alert al-rd mb10">🔴 ${needReplace} tyre${needReplace>1?'s':''} need immediate replacement — blowout risk on highway.</div>`:''}
+${watchTyres>0?`<div class="alert al-am mb10">⚠️ ${watchTyres} tyre${watchTyres>1?'s':''} between 70-85% life — plan purchase soon.</div>`:''}
+
+<div class="card mb14">
+  <div class="section-header mb10">
+    <h3>All 12 Tyre Positions — ${H(DB.trucks.find(t=>t.id===tyTid)?.reg||'')}</h3>
+    <span class="badge b-bl">Odo: ${KM(curOdo)}</span>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Position</th><th>Brand</th><th>Status</th><th>Cost</th><th>Fitted KM</th><th>KM Used</th><th>Expected Life</th><th>KM Left</th><th>Life Used</th><th>Alert</th><th>₹/KM</th><th></th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="12" style="text-align:center;color:var(--text3);padding:20px">No tyre data — click Edit on each position to fill in details</td></tr>'}</tbody>
+  </table></div>
+</div>
+
+${brands.length>0?`<div class="card mb14">
+  <div class="fw7 mb10" style="font-size:13px">🏆 Brand Performance — Which Tyre Gives Best Value?</div>
+  <div class="infobox mb10">Ranked by ₹ per KM — lower cost per km = better value for money</div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Rank</th><th>Brand</th><th>Tyres</th><th>Avg Cost/Tyre</th><th>Total Spent</th><th>Avg Life</th><th>Cost per KM</th><th>Verdict</th></tr></thead>
+    <tbody>${brands.map((b,i)=>{
+      const avgCPR=b.cpr.length?b.cpr.reduce((s,v)=>s+v,0)/b.cpr.length:0;
+      const verdict=i===0&&brands.length>1?'🥇 Best Value':avgCPR===0?'No data yet':avgCPR<0.20?'✅ Good value':'⚠️ Expensive';
+      return`<tr style="${i===0?'background:#f0fdf4':''}">
+        <td class="tc fw7" style="color:${i===0?'var(--greentxt)':'inherit'}">${i+1}</td>
+        <td class="fw7">${H(b.brand)}</td>
+        <td class="tc">${b.count}</td>
+        <td class="tr">${b.count>0?INR(Math.round(b.totalCost/b.count)):'—'}</td>
+        <td class="tr">${INR(b.totalCost)}</td>
+        <td class="tr">${b.totalExp>0?KM(Math.round(b.totalExp/b.count)):'—'}</td>
+        <td class="tr fw7 ${avgCPR>0&&avgCPR<0.20?'col-g':'col-a'}">${avgCPR>0?'₹'+avgCPR.toFixed(3)+'/km':'—'}</td>
+        <td>${verdict}</td>
+      </tr>`;}).join('')}
+    </tbody>
+  </table></div>
+</div>`:''}
+
+<div class="card">
+  <div class="fw7 mb10" style="font-size:13px">📅 Replacement Budget Planner</div>
+  <div class="infobox mb10">Based on your average monthly KM of ${kpMonth>0?Math.round(kpMonth).toLocaleString('en-IN')+' km':'—'} — estimated replacement timelines for active tyres</div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Position</th><th>Brand</th><th>Life Used</th><th>Est. Replace In</th><th>Budget Needed</th></tr></thead>
+    <tbody>${tyres2.filter(t=>t.status==='In Use'&&+(t.exp)>0).map(t=>{
+      const used=+(t.rem)>0?+(t.rem)-+(t.fit):(curOdo>+(t.fit)&&+(t.fit)>0?curOdo-+(t.fit):0);
+      const pct=Math.round(used/+(t.exp)*100);
+      const remKm=Math.max(0,+(t.exp)-used);
+      const mthsLeft=kpMonth>0?Math.round(remKm/kpMonth):null;
+      return`<tr style="${pct>=85?'background:#fff5f5':''}">
+        <td class="fw6">${H(t.pos)}</td>
+        <td>${H(t.brand||'—')}</td>
+        <td><span class="pkm-pill ${pct>=85?'bad':pct>=70?'warn':'good'}">${pct}%</span></td>
+        <td>${mthsLeft!==null?(mthsLeft<=0?'<span class="badge b-rd">Replace Now</span>':mthsLeft===1?'This month':'~'+mthsLeft+' months'):'Enter trip KM data'}</td>
+        <td class="tr fw6">${+(t.cost)>0?INR(+(t.cost)):'Add tyre cost to estimate'}</td>
+      </tr>`;}).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px">No active tyres — set status to In Use and fill in KM at fitment</td></tr>'}
+    </tbody>
+  </table></div>
+</div>`;
 }
 function openTyreModal(id){
   EID=id;const t=DB.tyres.find(x=>x.id===id)||{};
@@ -2127,41 +2281,159 @@ function peC(){const e=document.getElementById('pe-inc');if(e)e.textContent=INR(
 // BANK REPORT
 // ═══════════════════════════════════════════════════
 function pgBank(){
-  document.getElementById('topbar-actions').innerHTML=`<button class="btn" onclick="window.print()">🖨 Print</button>`;
-  const at=allStats(0);const ms=mStats(0,new Date().getFullYear(),new Date().getMonth());const t=DB.trucks[0]||{};
-  return`<div style="max-width:700px;margin:0 auto">
-  <div class="card" style="padding:24px">
-    <div style="text-align:center;border-bottom:2px solid var(--border);padding-bottom:16px;margin-bottom:16px">
-      <div style="font-size:22px;font-weight:800">MALDAR ROADLINES</div>
-      <div class="fs11 col-3 mt4">Transport · Logistics · Goods Carrier · Hyderabad, Telangana</div>
-    </div>
-    <div style="font-size:17px;font-weight:700;text-align:center;margin-bottom:16px">FINANCIAL PERFORMANCE REPORT</div>
-    <div class="g2 mb16">
-      ${DB.trucks.map(t2=>`<div><div class="fs11 col-3">Truck ${t2.id}</div><div class="fw6">${H(t2.reg)} — ${H(t2.make)} ${H(t2.type)}</div></div>`).join('')}
-      <div><div class="fs11 col-3">Report Date</div><div class="fw6">${fD(today())}</div></div>
-    </div>
-    <div class="sdiv">All-Time Summary — Entire Fleet</div>
-    <div class="g2 mb16">
-      <div><div class="fs11 col-3">Total Gross Income</div><div class="fw7" style="font-size:16px">${INR(at.inc)}</div></div>
-      <div><div class="fs11 col-3">Total Net Profit</div><div class="fw7" style="font-size:16px;color:${at.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(at.net)}</div></div>
-      <div><div class="fs11 col-3">Total Trips</div><div class="fw6">${at.trips}</div></div>
-      <div><div class="fs11 col-3">Total KM</div><div class="fw6">${KM(at.km)}</div></div>
-      <div><div class="fs11 col-3">Total Fuel Cost</div><div class="fw6">${INR(at.fuel)}</div></div>
-      <div><div class="fs11 col-3">Avg Mileage</div><div class="fw6">${at.avgMil>0?at.avgMil+' km/L':'—'}</div></div>
-      <div><div class="fs11 col-3">Avg Profit/Trip</div><div class="fw6">${at.trips>0?INR(at.net/at.trips):'—'}</div></div>
-      <div><div class="fs11 col-3">Pending Receivables</div><div class="fw6">${INR(at.pend)}</div></div>
-    </div>
-    <div class="sdiv">Current Month</div>
-    <div class="g2">
-      <div><div class="fs11 col-3">Monthly Income</div><div class="fw7">${INR(ms.inc)}</div></div>
-      <div><div class="fs11 col-3">Monthly Net Profit</div><div class="fw7" style="color:${ms.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(ms.net)}</div></div>
-      <div><div class="fs11 col-3">Trips This Month</div><div class="fw6">${ms.trips}</div></div>
-      <div><div class="fs11 col-3">Total Expenses</div><div class="fw6">${INR(ms.exp)}</div></div>
-    </div>
-    <div style="margin-top:36px;border-top:1px solid var(--border);padding-top:12px;font-size:11px;color:var(--text3);text-align:center">Auto-generated · Maldar Fleet Manager · Hyderabad, Telangana</div>
-  </div></div>`;
-}
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn" onclick="printBankReport()">🖨 Print Report</button>`;
+  const yr=new Date().getFullYear();
+  const at=allStats(0);
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const lastYr=yr-1;
+  const thisYrS=MN.map((_,i)=>mStats(0,yr,i));
+  const lastYrS=MN.map((_,i)=>mStats(0,lastYr,i));
+  const tyInc=thisYrS.reduce((s,m)=>s+m.inc,0);
+  const tyExp=thisYrS.reduce((s,m)=>s+m.exp,0);
+  const tyNet=thisYrS.reduce((s,m)=>s+m.net,0);
+  const tyKm=thisYrS.reduce((s,m)=>s+m.km,0);
+  const lyInc=lastYrS.reduce((s,m)=>s+m.inc,0);
+  const lyNet=lastYrS.reduce((s,m)=>s+m.net,0);
+  const lyKm=lastYrS.reduce((s,m)=>s+m.km,0);
+  const growth=lyInc>0?((tyInc-lyInc)/lyInc*100).toFixed(1):null;
 
+  // Vehicle running cost per truck
+  const truckCosts=DB.trucks.map(tk=>{
+    const tkT=DB.trips.filter(t=>t.tid===tk.id&&new Date(t.date).getFullYear()===yr);
+    const tkF=DB.fuel.filter(f=>f.tid===tk.id&&new Date(f.date).getFullYear()===yr);
+    const fuelC=tkF.reduce((s,f)=>s+(+(f.totalCost)||0),0);
+    const tollC=tkT.reduce((s,t)=>s+(+(t.toll)||0),0);
+    const loadC=tkT.reduce((s,t)=>s+(+(t.load)||0)+(+(t.unload)||0),0);
+    const maintC=DB.maint.filter(m=>m.tid===tk.id&&String(m.lastDate||'').startsWith(String(yr))).reduce((s,m)=>s+(+(m.cost)||0),0);
+    const tyreC=Math.round(DB.tyres.filter(t=>t.tid===tk.id).reduce((s,t)=>s+(+(t.cost)||0),0)/5);
+    const drv=DB.drivers.find(d=>d.truckId===tk.id);
+    const drvSal=(+(drv?.salary)||0)*12;
+    const fixC=DB.fixed.filter(f=>f.tid===tk.id).reduce((s,f)=>s+(+(f.annual)||0),0);
+    const totC=fuelC+tollC+loadC+maintC+tyreC+drvSal+fixC;
+    const inc=tkT.reduce((s,t)=>s+(+(t.income)||0),0);
+    const km=tkT.reduce((s,t)=>s+(+(t.km)||0),0);
+    return{tk,trips:tkT.length,inc,fuelC,tollC,loadC,maintC,tyreC,drvSal,fixC,totC,km,cpkm:km>0?totC/km:0,profit:inc-totC};
+  });
+
+  return`<div id="bank-report-body">
+<div class="ph"><div><h2>Annual P&L + Vehicle Running Cost</h2><p>Maldar Roadlines — ${yr}</p></div>
+  ${growth?`<span class="badge ${+growth>=0?'b-gn':'b-rd'}" style="font-size:13px">${+growth>=0?'↑':'↓'}${Math.abs(+growth)}% income vs ${lastYr}</span>`:''}
+</div>
+
+<!-- ANNUAL P&L -->
+<div class="card mb14">
+  <div class="fw7 mb12" style="font-size:14px">📊 Annual Profit & Loss — ${yr}</div>
+  <div class="g4 mb14">
+    <div class="hmetric hero-blue"><div class="mlabel">${yr} Gross Income</div><div class="mval">${INR(tyInc)}</div><div class="msub">${thisYrS.reduce((s,m)=>s+m.trips,0)} trips this year</div></div>
+    <div class="hmetric ${tyNet>=0?'hero-green':'hero-red'}"><div class="mlabel">${yr} Net Profit</div><div class="mval">${INR(tyNet)}</div><div class="msub">${tyNet>=0?'Profitable year 👍':'Loss year 👎'}</div></div>
+    <div class="hmetric hero-purple"><div class="mlabel">${yr} Total Expenses</div><div class="mval">${INR(tyExp)}</div><div class="msub">All costs combined</div></div>
+    <div class="hmetric hero-teal"><div class="mlabel">${yr} KM Driven</div><div class="mval">${Math.round(tyKm).toLocaleString('en-IN')}</div><div class="msub">${tyKm>0?'₹'+(tyNet/tyKm).toFixed(1)+'/km net':'—'}</div></div>
+  </div>
+  <div class="tbl-wrap mb12"><table>
+    <thead><tr><th>Month</th><th>Trips</th><th>Income</th><th>Fuel</th><th>Toll</th><th>Other</th><th>Total Exp</th><th>Net Profit</th><th>KM</th><th>Profit/KM</th></tr></thead>
+    <tbody>
+    ${thisYrS.map((s,i)=>s.trips>0?`<tr>
+      <td class="fw6">${MN[i]}</td><td class="tc">${s.trips}</td>
+      <td class="tr">${INR(s.inc)}</td><td class="tr">${INR(s.fuel)}</td>
+      <td class="tr">${INR(s.toll)}</td><td class="tr">${INR(s.load+s.addl)}</td>
+      <td class="tr">${INR(s.exp)}</td>
+      <td class="tr fw7" style="color:${s.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(s.net)}</td>
+      <td class="tr">${Math.round(s.km).toLocaleString('en-IN')}</td>
+      <td class="tr"><span class="pkm-pill ${s.km>0&&s.net/s.km>10?'good':s.km>0&&s.net/s.km>0?'warn':'bad'}">${s.km>0?'₹'+(s.net/s.km).toFixed(1)+'/km':'—'}</span></td>
+    </tr>`:'').join('')}
+    <tr style="background:#f1f5f9;font-weight:700;font-size:12px">
+      <td>TOTAL ${yr}</td><td class="tc">${thisYrS.reduce((s,m)=>s+m.trips,0)}</td>
+      <td class="tr">${INR(tyInc)}</td>
+      <td class="tr">${INR(thisYrS.reduce((s,m)=>s+m.fuel,0))}</td>
+      <td class="tr">${INR(thisYrS.reduce((s,m)=>s+m.toll,0))}</td>
+      <td class="tr">${INR(thisYrS.reduce((s,m)=>s+m.load+m.addl,0))}</td>
+      <td class="tr">${INR(tyExp)}</td>
+      <td class="tr" style="color:${tyNet>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(tyNet)}</td>
+      <td class="tr">${Math.round(tyKm).toLocaleString('en-IN')}</td>
+      <td class="tr">${tyKm>0?'₹'+(tyNet/tyKm).toFixed(1)+'/km':'—'}</td>
+    </tr>
+    </tbody>
+  </table></div>
+  ${lyInc>0?`<div class="sdiv">📈 Year vs Year Comparison</div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>KPI</th><th>${lastYr}</th><th>${yr}</th><th>Change</th></tr></thead>
+    <tbody>
+    ${[['Gross Income',lyInc,tyInc,INR],['Net Profit',lyNet,tyNet,INR],
+       ['Total Trips',lastYrS.reduce((s,m)=>s+m.trips,0),thisYrS.reduce((s,m)=>s+m.trips,0),v=>v+' trips'],
+       ['KM Driven',lyKm,tyKm,v=>Math.round(v).toLocaleString('en-IN')+' km']
+      ].map(([lbl,lv,cv,fmt])=>{const d=cv-lv;const pct=lv>0?((d/lv)*100).toFixed(1):0;
+      return`<tr><td class="fw6">${lbl}</td><td class="tr">${fmt(lv)}</td><td class="tr fw6">${fmt(cv)}</td>
+        <td class="tr fw7" style="color:${d>=0?'var(--greentxt)':'var(--redtxt)'}">${d>=0?'↑':'↓'}${Math.abs(pct)}%</td></tr>`;}).join('')}
+    </tbody>
+  </table></div>`:''}
+</div>
+
+<!-- VEHICLE RUNNING COST -->
+<div class="card mb14">
+  <div class="fw7 mb10" style="font-size:14px">🚛 Vehicle Running Cost Report — ${yr}</div>
+  <div class="infobox mb12">Full cost breakdown per truck this year. Use this to decide which truck costs too much or when to replace.</div>
+  ${truckCosts.map(tc=>`
+  <div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">
+    <div style="background:linear-gradient(135deg,${tc.tk.id===1?'#1e40af,#2563eb':'#4c1d95,#7c3aed'});color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center">
+      <div><div style="font-weight:800;font-size:15px">🚛 ${H(tc.tk.reg)}</div>
+        <div style="font-size:11px;opacity:.8">${H(tc.tk.make||'')} ${H(tc.tk.type||'')} · ${tc.trips} trips in ${yr}</div></div>
+      <div style="text-align:right">
+        <div style="font-size:11px;opacity:.8">Net Profit ${yr}</div>
+        <div style="font-size:18px;font-weight:900">${INR(tc.profit)}</div>
+      </div>
+    </div>
+    <div style="padding:14px 16px">
+      <div class="g4 mb12">
+        <div class="metric"><div class="mlabel">Gross Income</div><div class="mval">${INR(tc.inc)}</div></div>
+        <div class="metric ${tc.profit>=0?'gn':'rd'}"><div class="mlabel">Net Profit</div><div class="mval">${INR(tc.profit)}</div></div>
+        <div class="metric"><div class="mlabel">Total KM</div><div class="mval">${Math.round(tc.km).toLocaleString('en-IN')}</div></div>
+        <div class="metric bl"><div class="mlabel">Cost per KM</div><div class="mval">${tc.cpkm>0?'₹'+tc.cpkm.toFixed(2):'—'}</div></div>
+      </div>
+      <div style="background:#f8fafc;border-radius:var(--r);overflow:hidden">
+        ${[
+          ['⛽','Fuel Cost',tc.fuelC,'linear-gradient(135deg,#f59e0b,#d97706)'],
+          ['🛞','Tyres (amortised /5yr)',tc.tyreC,'linear-gradient(135deg,#3b82f6,#2563eb)'],
+          ['🔧','Maintenance',tc.maintC,'linear-gradient(135deg,#8b5cf6,#7c3aed)'],
+          ['👤','Driver Salary (annual)',tc.drvSal,'linear-gradient(135deg,#10b981,#16a34a)'],
+          ['🛣️','Toll',tc.tollC,'linear-gradient(135deg,#ef4444,#dc2626)'],
+          ['📦','Loading / Unloading',tc.loadC,'linear-gradient(135deg,#f97316,#ea580c)'],
+          ['📋','Fixed Costs (annual)',tc.fixC,'linear-gradient(135deg,#6366f1,#4f46e5)'],
+        ].map(([icon,label,val,grad])=>`
+        <div class="cost-row">
+          <div class="ci">
+            <div class="ci-icon" style="background:${grad}">${icon}</div>
+            <div>
+              <div class="fw6 fs12">${label}</div>
+              <div class="fs11 col-3">${tc.km>0&&val>0?'₹'+(val/tc.km).toFixed(2)+'/km':''} ${tc.inc>0&&val>0?'· '+(val/tc.inc*100).toFixed(1)+'% of income':''}</div>
+            </div>
+          </div>
+          <div style="text-align:right"><div class="fw7">${INR(val)}</div></div>
+        </div>`).join('')}
+        <div class="cost-total"><span>TOTAL RUNNING COST — ${yr}</span><span>${INR(tc.totC)}</span></div>
+      </div>
+    </div>
+  </div>`).join('')}
+</div>
+
+<!-- FLEET ALL-TIME -->
+<div class="card">
+  <div class="fw7 mb10" style="font-size:13px">Fleet All-Time Summary</div>
+  <div class="g4 mb12">
+    <div class="metric"><div class="mlabel">All-Time Income</div><div class="mval">${INR(at.inc)}</div></div>
+    <div class="metric ${at.net>=0?'gn':'rd'}"><div class="mlabel">All-Time Profit</div><div class="mval">${INR(at.net)}</div></div>
+    <div class="metric bl"><div class="mlabel">Total Trips</div><div class="mval">${at.trips}</div></div>
+    <div class="metric te"><div class="mlabel">Total KM</div><div class="mval">${KM(at.km)}</div></div>
+    <div class="metric"><div class="mlabel">Avg Profit/Trip</div><div class="mval">${at.trips>0?INR(Math.round(at.net/at.trips)):'—'}</div></div>
+    <div class="metric"><div class="mlabel">Avg Mileage</div><div class="mval">${at.avgMil>0?at.avgMil+' km/L':'—'}</div></div>
+    <div class="metric am"><div class="mlabel">Pending Payments</div><div class="mval">${INR(at.pend)}</div></div>
+    <div class="metric ${at.loans>0?'rd':'gn'}"><div class="mlabel">Active Loans</div><div class="mval">${INR(at.loans)}</div></div>
+  </div>
+  <div style="border-top:1px solid var(--border);padding-top:10px;font-size:11px;color:var(--text3);text-align:center">
+    Auto-generated · Maldar Fleet Manager · Hyderabad, Telangana · ${new Date().toLocaleString('en-IN')}
+  </div>
+</div>
+</div>`;
+}
 // ═══════════════════════════════════════════════════
 // ACTIVITY LOG
 // ═══════════════════════════════════════════════════
@@ -3141,6 +3413,12 @@ function convertQuotationToBilty(){
   };
   biltyTid=0;
   go('bilty');
+}
+
+function printBankReport(){
+  const el=document.getElementById('bank-report-body');
+  if(!el){alert('Report not loaded.');return;}
+  printDoc(el.outerHTML,'Bank Report - Maldar Roadlines','portrait');
 }
 
 // ═══════════════════════════════════════════════════
