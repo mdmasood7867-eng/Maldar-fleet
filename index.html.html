@@ -216,6 +216,23 @@ textarea.fc{resize:vertical;min-height:60px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 
 /* ── LOGIN SCREEN ── */
+/* PIN LOCK */
+.pin-dots{display:flex;gap:14px;justify-content:center;margin:20px 0 10px}
+.pin-dot{width:18px;height:18px;border-radius:50%;border:2px solid #cbd5e1;background:transparent;transition:all .2s}
+.pin-dot.filled{background:#2563eb;border-color:#2563eb;transform:scale(1.15)}
+.pin-dot.error{background:#dc2626;border-color:#dc2626}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.pin-key{padding:15px 0;border-radius:12px;border:1.5px solid #e2e8f0;background:#f8fafc;font-size:20px;font-weight:700;cursor:pointer;transition:all .15s;color:#0f172a;text-align:center}
+.pin-key:hover{background:#eff6ff;border-color:#93c5fd;color:#1e40af}
+.pin-key:active{transform:scale(.93);background:#dbeafe}
+.pin-key.wide{grid-column:span 2;font-size:14px;color:#64748b}
+.pin-key.del{font-size:18px;color:#64748b}
+.pin-switch{font-size:12px;color:#94a3b8;text-align:center;margin-top:10px;cursor:pointer;text-decoration:underline}
+/* UNDO SYSTEM */
+.undo-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(100px);background:#1e293b;color:#fff;border-radius:12px;padding:12px 18px;font-size:13px;font-weight:500;z-index:8000;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.3);display:flex;align-items:center;gap:10px;min-width:280px}
+.undo-toast.show{transform:translateX(-50%) translateY(0)}
+.undo-toast-btn{background:#3b82f6;color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0}
+.undo-toast-btn:hover{background:#2563eb}
 #login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px}
 .login-card{background:#fff;border-radius:20px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 25px 80px rgba(0,0,0,.4);text-align:center}
 .login-logo{width:56px;height:56px;background:linear-gradient(135deg,#2563eb,#7c3aed);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px}
@@ -241,11 +258,41 @@ textarea.fc{resize:vertical;min-height:60px}
 <div class="sr">Maldar Fleet Manager — Truck Management Application</div>
 <!-- LOGIN SCREEN -->
 <div id="login-screen">
-  <div class="login-card">
+  <!-- PIN MODE -->
+  <div class="login-card" id="pin-card">
     <div class="login-logo">🚛</div>
     <div class="login-title">Maldar Fleet</div>
-    <div class="login-sub">Sign in to access your fleet manager</div>
-    <div class="login-err" id="login-err">Incorrect username or password. Please try again.</div>
+    <div class="login-sub" id="pin-sub">Enter your 4-digit PIN</div>
+    <div class="login-err" id="login-err" style="display:none"></div>
+    <div class="pin-dots" id="pin-dots">
+      <div class="pin-dot" id="d0"></div>
+      <div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div>
+      <div class="pin-dot" id="d3"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key wide" onclick="pinClear()">Clear</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key del" onclick="pinBack()">⌫</button>
+    </div>
+    <div class="login-footer">Maldar Roadlines · Private Access Only</div>
+    <div class="pin-switch" onclick="showPassMode()">Use password instead</div>
+  </div>
+  <!-- PASSWORD MODE (fallback) -->
+  <div class="login-card" id="pass-card" style="display:none">
+    <div class="login-logo">🚛</div>
+    <div class="login-title">Maldar Fleet</div>
+    <div class="login-sub">Sign in with username & password</div>
+    <div class="login-err" id="login-err2"></div>
     <div class="login-field">
       <label>Username</label>
       <input type="text" class="login-input" id="login-user" placeholder="Enter username" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
@@ -258,10 +305,16 @@ textarea.fc{resize:vertical;min-height:60px}
       </div>
     </div>
     <button class="login-btn" onclick="doLogin()">Sign In →</button>
+    <div class="pin-switch" onclick="showPinMode()">Use PIN instead</div>
     <div class="login-footer">Maldar Roadlines · Private Access Only</div>
   </div>
 </div>
 <button id="lock-btn" onclick="doLogout()" title="Lock / Sign Out">🔒 Lock</button>
+<!-- UNDO TOAST -->
+<div class="undo-toast" id="undo-toast">
+  <span id="undo-msg">Item deleted</span>
+  <button class="undo-toast-btn" onclick="doUndo()">↩ Undo</button>
+</div>
 
 <div id="app">
 <!-- SIDEBAR -->
@@ -1216,11 +1269,19 @@ function openPayModal(tid2){
   });
 }
 function delTrip(id){
-  const rel=DB.fuel.filter(f=>f.tripId===id).length;
-  if(!confirm(`Delete Trip #${id}?${rel?`\n\n${rel} linked fuel entr${rel>1?'ies':'y'} will also be deleted.`:''}`))return;
+  const trip=DB.trips.find(x=>x.id===id);if(!trip)return;
+  const relFuel=DB.fuel.filter(f=>f.tripId===id);
+  if(!confirm(`Delete Trip #${id}? (${trip.from||'?'}→${trip.to||'?'})${relFuel.length?`\n${relFuel.length} linked fuel entries will also be deleted.`:''}`))return;
+  const snapTrip={...trip};const snapFuel=[...relFuel];
   DB.fuel=DB.fuel.filter(f=>f.tripId!==id);
   DB.trips=DB.trips.filter(x=>x.id!==id);
-  log('Trip Deleted',`#${id}`);recalcFuel(1);recalcFuel(2);save();go('trips');
+  pushUndo(`Trip #${id} (${trip.from||'?'}→${trip.to||'?'} ${INR(+(trip.income)||0)})`,()=>{
+    DB.trips.push(snapTrip);
+    snapFuel.forEach(f=>DB.fuel.push(f));
+    recalcFuel(snapTrip.tid||1);
+  });
+  log('Trip Deleted',`#${id}`);recalcFuel(1);recalcFuel(2);save();
+  showUndoToast('Trip #'+id+' deleted — tap Undo within 6s');go('trips');
 }
 
 // ═══════════════════════════════════════════════════
@@ -1307,9 +1368,13 @@ function openFuelModal(id){
 }
 function mfC(){const e=document.getElementById('mf-c');if(e)e.textContent=INR(nv('mf-l')*nv('mf-p'));}
 function delFuel(id){
-  if(!confirm('Delete this fuel entry?'))return;
-  const f=DB.fuel.find(x=>x.id===id);const tid2=f?.tid||1;
-  DB.fuel=DB.fuel.filter(x=>x.id!==id);log('Fuel Deleted',`#${id}`);recalcFuel(tid2);save();go('fuel');
+  const f=DB.fuel.find(x=>x.id===id);if(!f)return;
+  if(!confirm('Delete this fuel entry? '+f.ltrs+'L @ ₹'+f.ppl+'/L'))return;
+  const snap={...f};const tid2=f.tid||1;
+  DB.fuel=DB.fuel.filter(x=>x.id!==id);
+  pushUndo(`Fuel entry #${id} (${snap.ltrs}L @ ₹${snap.ppl}/L)`,()=>{DB.fuel.push(snap);recalcFuel(tid2);});
+  log('Fuel Deleted',`#${id}`);recalcFuel(tid2);save();
+  showUndoToast('Fuel entry deleted — tap Undo within 6s');go('fuel');
 }
 
 // ═══════════════════════════════════════════════════
@@ -1369,7 +1434,15 @@ function openExpModal(id){
     save();CM();go('expenses');
   });
 }
-function delExp(id){if(!confirm('Delete this expense?'))return;DB.expenses=DB.expenses.filter(x=>x.id!==id);log('Expense Deleted',`#${id}`);save();go('expenses');}
+function delExp(id){
+  const e=DB.expenses.find(x=>x.id===id);if(!e)return;
+  if(!confirm('Delete expense: '+e.cat+' — ₹'+e.amt+'?'))return;
+  const snap={...e};
+  DB.expenses=DB.expenses.filter(x=>x.id!==id);
+  pushUndo(`Expense #${id} (${snap.cat} ₹${snap.amt})`,()=>{DB.expenses.push(snap);});
+  log('Expense Deleted',`#${id}`);save();
+  showUndoToast('Expense deleted — tap Undo within 6s');go('expenses');
+}
 
 // ═══════════════════════════════════════════════════
 // RECEIVABLES
@@ -1541,7 +1614,15 @@ function openDriverModal(id){
     save();CM();go('drivers');
   });
 }
-function delDriver(id){if(!confirm('Delete this driver?'))return;DB.drivers=DB.drivers.filter(x=>x.id!==id);save();go('drivers');}
+function delDriver(id){
+  const d=DB.drivers.find(x=>x.id===id);if(!d)return;
+  if(!confirm('Delete driver: '+d.name+'?'))return;
+  const snap={...d};
+  DB.drivers=DB.drivers.filter(x=>x.id!==id);
+  pushUndo(`Driver: ${snap.name}`,()=>{DB.drivers.push(snap);});
+  log('Driver Deleted',d.name);save();
+  showUndoToast('Driver deleted — tap Undo within 6s');go('drivers');
+}
 
 // ═══════════════════════════════════════════════════
 // BROKERS
@@ -1586,7 +1667,15 @@ function openBrokerModal(id){
     save();CM();go('brokers');
   });
 }
-function delBroker(id){if(!confirm('Delete this broker? Their trips will NOT be deleted.'))return;DB.brokers=DB.brokers.filter(x=>x.id!==id);save();go('brokers');}
+function delBroker(id){
+  const b=DB.brokers.find(x=>x.id===id);if(!b)return;
+  if(!confirm('Delete broker: '+b.name+'? Their trips will NOT be deleted.'))return;
+  const snap={...b};
+  DB.brokers=DB.brokers.filter(x=>x.id!==id);
+  pushUndo(`Broker: ${snap.name}`,()=>{DB.brokers.push(snap);});
+  log('Broker Deleted',b.name);save();
+  showUndoToast('Broker deleted — tap Undo within 6s');go('brokers');
+}
 
 // ═══════════════════════════════════════════════════
 // MAINTENANCE
@@ -1618,7 +1707,7 @@ ${truckTabs}
     <td>${rem!==null?KM(Math.max(0,rem)):'—'}</td>
     <td><span class="badge ${st==='OVERDUE'?'b-rd':st==='DUE SOON'?'b-am':st==='NOT SET'?'b-gr':'b-gn'}">${st}</span></td>
     <td class="tr">${m.cost>0?INR(m.cost):'—'}</td>
-    <td><button class="btn btn-sm" onclick="openMaintModal(${m.id})">Update</button></td>
+    <td><button class="btn btn-sm" onclick="openMaintModal(${m.id})">Update</button> <button class="btn btn-sm btn-danger" onclick="delMaint(${m.id})">Del</button></td>
   </tr>`;}).join('')}</tbody>
 </table></div>`;
 }
@@ -1646,6 +1735,16 @@ function openMaintModal(id){
     else{DB.maint.push({id:nid(DB.maint),...data});log('Maintenance Added',item);}
     save();CM();go('maint');
   });
+}
+
+function delMaint(id){
+  const m=DB.maint.find(x=>x.id===id);if(!m)return;
+  if(!confirm('Delete service item: '+m.item+'? All its service history will be lost.'))return;
+  const snap={...m};
+  DB.maint=DB.maint.filter(x=>x.id!==id);
+  pushUndo(`Maintenance item: ${snap.item}`,()=>{DB.maint.push(snap);});
+  log('Maintenance Deleted',m.item);save();
+  showUndoToast('Maintenance item deleted — tap Undo within 6s');go('maint');
 }
 
 // ═══════════════════════════════════════════════════
@@ -1700,7 +1799,15 @@ function openDocModal(id){
     log('Document Updated',name);save();CM();go('docs');
   });
 }
-function delDoc(id){if(!confirm('Delete this document?'))return;DB.docs=DB.docs.filter(x=>x.id!==id);save();go('docs');}
+function delDoc(id){
+  const d=DB.docs.find(x=>x.id===id);if(!d)return;
+  if(!confirm('Delete document: '+d.name+'?'))return;
+  const snap={...d};
+  DB.docs=DB.docs.filter(x=>x.id!==id);
+  pushUndo(`Document: ${snap.name}`,()=>{DB.docs.push(snap);});
+  log('Document Deleted',d.name);save();
+  showUndoToast('Document deleted — tap Undo within 6s');go('docs');
+}
 
 // ═══════════════════════════════════════════════════
 // TYRES
@@ -1932,7 +2039,16 @@ function openLoanPayModal(lid){
     log('Loan Repayment',`${INR(amt)} for loan #${lid}`);save();CM();go('loans');
   });
 }
-function delLoan(id){if(!confirm('Delete this loan and all its repayments?'))return;DB.loans=DB.loans.filter(x=>x.id!==id);DB.loanPay=DB.loanPay.filter(x=>x.lid!==id);log('Loan Deleted',`#${id}`);save();go('loans');}
+function delLoan(id){
+  const l=DB.loans.find(x=>x.id===id);if(!l)return;
+  const pays=DB.loanPay.filter(x=>x.lid===id);
+  if(!confirm('Delete loan: '+l.purpose+' (₹'+l.amount+') and all '+pays.length+' repayments?'))return;
+  const snapL={...l};const snapP=[...pays];
+  DB.loans=DB.loans.filter(x=>x.id!==id);DB.loanPay=DB.loanPay.filter(x=>x.lid!==id);
+  pushUndo(`Loan: ${snapL.purpose} ₹${snapL.amount}`,()=>{DB.loans.push(snapL);snapP.forEach(p=>DB.loanPay.push(p));});
+  log('Loan Deleted',`#${id}`);save();
+  showUndoToast('Loan deleted — tap Undo within 6s');go('loans');
+}
 
 // ═══════════════════════════════════════════════════
 // MONTHLY P&L
@@ -2156,7 +2272,15 @@ ${hasData?`
 }
 function afterFixed(){}
 function updFixed(id,v){const f=DB.fixed.find(x=>x.id===id);if(f){f.annual=Math.max(0,+(v||0));save();}}
-function delFixed(id){if(!confirm('Delete?'))return;DB.fixed=DB.fixed.filter(x=>x.id!==id);save();go('fixed');}
+function delFixed(id){
+  const f=DB.fixed.find(x=>x.id===id);if(!f)return;
+  if(!confirm('Delete fixed cost: '+f.item+'?'))return;
+  const snap={...f};
+  DB.fixed=DB.fixed.filter(x=>x.id!==id);
+  pushUndo(`Fixed cost: ${snap.item} ₹${snap.annual}/yr`,()=>{DB.fixed.push(snap);});
+  log('Fixed Cost Deleted',f.item);save();
+  showUndoToast('Fixed cost deleted — tap Undo within 6s');go('fixed');
+}
 function openFixedModal(){
   OM('Add Fixed Cost',`
     <div class="fg"><label class="fl">Truck</label><select class="fc" id="fc-tid">${DB.trucks.map(t=>`<option value="${t.id}" ${fixTid===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}</select></div>
@@ -2475,16 +2599,24 @@ function pgSettings(){
   <div>
     <div class="card mb12">
       <div class="sdiv">🔐 Login Credentials</div>
-      <div class="al-bl alert mb12">Change your username and password here. Default login is <strong>maldar / fleet2024</strong></div>
+      <div class="al-bl alert mb12">Default PIN: <strong>1234</strong> · Username: <strong>maldar</strong> · Password: <strong>fleet2024</strong><br>Change any of these below. Leave blank to keep current.</div>
+      <div class="sdiv" style="margin-top:10px">4-Digit PIN (recommended for phone)</div>
+      <div class="fr2">
+        <div class="fg"><label class="fl">New PIN <span class="fs11 col-3">(4 digits only)</span></label>
+          <input type="number" class="fc" id="cred-pin" placeholder="e.g. 7291" maxlength="4" min="0" max="9999"></div>
+        <div class="fg"><label class="fl">Confirm New PIN</label>
+          <input type="number" class="fc" id="cred-pin2" placeholder="Repeat PIN" maxlength="4" min="0" max="9999"></div>
+      </div>
+      <div class="sdiv">Username & Password (fallback)</div>
       <div class="fr2">
         <div class="fg"><label class="fl">Username</label>
           <input type="text" class="fc" id="cred-user" value="${localStorage.getItem('FL_USER')||'maldar'}" placeholder="Username"></div>
         <div class="fg"><label class="fl">New Password</label>
-          <input type="password" class="fc" id="cred-pass" placeholder="Enter new password"></div>
+          <input type="password" class="fc" id="cred-pass" placeholder="Leave blank to keep current"></div>
       </div>
       <div class="fg"><label class="fl">Confirm New Password</label>
         <input type="password" class="fc" id="cred-pass2" placeholder="Confirm new password"></div>
-      <button class="btn btn-primary" onclick="saveCreds()">Save Login Credentials</button>
+      <button class="btn btn-primary" onclick="saveCreds()">💾 Save All Credentials</button>
     </div>
     <div class="card mb12">
       <div class="sdiv">Owner Details</div>
@@ -3423,21 +3555,230 @@ function printBankReport(){
 }
 
 // ═══════════════════════════════════════════════════
-// CREDENTIALS
+// PIN + LOGIN SYSTEM
 // ═══════════════════════════════════════════════════
+const DEFAULT_PIN  = '1234';
+const DEFAULT_USER = 'maldar';
+const DEFAULT_PASS = 'fleet2024';
+
+let _pinBuf = '';
+let _pinMode = true; // true=PIN mode, false=password mode
+
+function getPin(){ return localStorage.getItem('FL_PIN') || DEFAULT_PIN; }
+function getCredentials(){ return {user:localStorage.getItem('FL_USER')||DEFAULT_USER, pass:localStorage.getItem('FL_PASS')||DEFAULT_PASS}; }
+function isLoggedIn(){ return sessionStorage.getItem('FL_AUTH')==='yes'; }
+
+// ── PIN KEYPAD ────────────────────────────────────────────────────────────────
+function pinKey(d){
+  if(_pinBuf.length>=4) return;
+  _pinBuf += d;
+  updatePinDots();
+  if(_pinBuf.length===4) setTimeout(checkPin, 120);
+}
+function pinBack(){
+  _pinBuf = _pinBuf.slice(0,-1);
+  updatePinDots();
+}
+function pinClear(){
+  _pinBuf = '';
+  updatePinDots();
+}
+function updatePinDots(){
+  for(let i=0;i<4;i++){
+    const d=document.getElementById('d'+i);
+    if(d){ d.classList.toggle('filled', i<_pinBuf.length); d.classList.remove('error'); }
+  }
+}
+function checkPin(){
+  if(_pinBuf === getPin()){
+    unlockApp();
+  } else {
+    // shake dots red
+    for(let i=0;i<4;i++){const d=document.getElementById('d'+i);if(d)d.classList.add('error');}
+    const sub=document.getElementById('pin-sub');
+    if(sub){sub.textContent='Incorrect PIN — try again';sub.style.color='var(--redtxt)';}
+    setTimeout(()=>{
+      _pinBuf='';updatePinDots();
+      const sub2=document.getElementById('pin-sub');
+      if(sub2){sub2.textContent='Enter your 4-digit PIN';sub2.style.color='';}
+    },800);
+  }
+}
+function showPassMode(){
+  _pinMode=false;
+  const pc=document.getElementById('pin-card');
+  const pas=document.getElementById('pass-card');
+  if(pc)pc.style.display='none';
+  if(pas)pas.style.display='';
+  setTimeout(()=>{const u=document.getElementById('login-user');if(u)u.focus();},100);
+}
+function showPinMode(){
+  _pinMode=true;
+  const pc=document.getElementById('pin-card');
+  const pas=document.getElementById('pass-card');
+  if(pc)pc.style.display='';
+  if(pas)pas.style.display='none';
+  _pinBuf='';updatePinDots();
+}
+
+// ── LOGIN / LOGOUT ────────────────────────────────────────────────────────────
+function doLogin(){
+  const uEl=document.getElementById('login-user');
+  const pEl=document.getElementById('login-pass');
+  const err=document.getElementById('login-err2');
+  if(!uEl||!pEl)return;
+  const u=uEl.value.trim();const p=pEl.value;
+  const creds=getCredentials();
+  if(!u||!p){if(err){err.textContent='Please enter username and password.';err.style.display='block';}return;}
+  if(u===creds.user&&p===creds.pass){unlockApp();}
+  else{if(err){err.textContent='Incorrect username or password.';err.style.display='block';}pEl.value='';pEl.focus();}
+}
+
+function unlockApp(){
+  sessionStorage.setItem('FL_AUTH','yes');
+  const scr=document.getElementById('login-screen');
+  const lbtn=document.getElementById('lock-btn');
+  if(scr)scr.style.display='none';
+  if(lbtn)lbtn.style.display='block';
+  const err=document.getElementById('login-err');
+  if(err)err.style.display='none';
+  _pinBuf='';
+  go('dashboard');
+}
+
+function doLogout(){
+  if(!confirm('Lock the app and sign out?'))return;
+  sessionStorage.removeItem('FL_AUTH');
+  const scr=document.getElementById('login-screen');
+  const lbtn=document.getElementById('lock-btn');
+  const uEl=document.getElementById('login-user');
+  const pEl=document.getElementById('login-pass');
+  if(scr)scr.style.display='flex';
+  if(lbtn)lbtn.style.display='none';
+  if(uEl)uEl.value='';
+  if(pEl)pEl.value='';
+  _pinBuf='';
+  // Always show PIN mode on lock
+  showPinMode();
+  setTimeout(()=>{const d=document.getElementById('d0');if(d)d.focus();},100);
+}
+
+function checkAuth(){
+  const scr=document.getElementById('login-screen');
+  const lbtn=document.getElementById('lock-btn');
+  if(!scr)return;
+  if(isLoggedIn()){
+    scr.style.display='none';
+    if(lbtn)lbtn.style.display='block';
+    go('dashboard');
+  } else {
+    scr.style.display='flex';
+    if(lbtn)lbtn.style.display='none';
+    showPinMode();
+    setTimeout(()=>{updatePinDots();},100);
+  }
+}
+
+function togglePass(){
+  const inp=document.getElementById('login-pass');
+  if(inp)inp.type=inp.type==='password'?'text':'password';
+}
+
+// ── SAVE CREDENTIALS & PIN ────────────────────────────────────────────────────
 function saveCreds(){
-  const u = document.getElementById('cred-user')?.value.trim();
-  const p = document.getElementById('cred-pass')?.value;
-  const p2 = document.getElementById('cred-pass2')?.value;
-  if(!u){ alert('Username cannot be empty.'); return; }
-  if(p && p !== p2){ alert('Passwords do not match. Please try again.'); return; }
-  localStorage.setItem('FL_USER', u);
-  if(p) localStorage.setItem('FL_PASS', p);
-  alert('✅ Login credentials saved!\n\nUsername: ' + u + '\nPassword: ' + (p ? '(updated)' : '(unchanged)'));
+  const u=document.getElementById('cred-user')?.value.trim();
+  const p=document.getElementById('cred-pass')?.value;
+  const p2=document.getElementById('cred-pass2')?.value;
+  const pin=document.getElementById('cred-pin')?.value;
+  const pin2=document.getElementById('cred-pin2')?.value;
+  if(!u){alert('Username cannot be empty.');return;}
+  if(p&&p!==p2){alert('Passwords do not match.');return;}
+  if(pin){
+    if(!/^\d{4}$/.test(pin)){alert('PIN must be exactly 4 digits (0-9).');return;}
+    if(pin!==pin2){alert('PINs do not match.');return;}
+    localStorage.setItem('FL_PIN',pin);
+  }
+  localStorage.setItem('FL_USER',u);
+  if(p)localStorage.setItem('FL_PASS',p);
+  alert('✅ Login credentials saved!\n\nPIN: '+(pin?'Updated':'Unchanged')+'\nUsername: '+u+'\nPassword: '+(p?'Updated':'Unchanged'));
+}
+
+// ── UNDO SYSTEM ───────────────────────────────────────────────────────────────
+let _undoStack = [];
+let _undoTimer = null;
+
+const UNDO_REASONS = [
+  'Wrong entry — entered by mistake',
+  'Duplicate — already entered',
+  'Data correction — fixing error',
+  'Test entry — was just testing',
+  'Other reason',
+];
+
+function pushUndo(label, restoreFn){
+  _undoStack.push({label, restoreFn, ts: Date.now()});
+  if(_undoStack.length > 20) _undoStack.shift(); // keep last 20
+}
+
+function showUndoToast(msg){
+  const toast=document.getElementById('undo-toast');
+  const msgEl=document.getElementById('undo-msg');
+  if(!toast||!msgEl)return;
+  msgEl.textContent=msg;
+  toast.classList.add('show');
+  if(_undoTimer)clearTimeout(_undoTimer);
+  _undoTimer=setTimeout(()=>{
+    toast.classList.remove('show');
+  }, 6000); // 6 seconds to undo
+}
+
+function doUndo(){
+  // Hide toast
+  const toast=document.getElementById('undo-toast');
+  if(toast)toast.classList.remove('show');
+  if(_undoTimer)clearTimeout(_undoTimer);
+  if(!_undoStack.length){alert('Nothing to undo.');return;}
+  const last=_undoStack[_undoStack.length-1];
+  // Show reason modal
+  showUndoReasonModal(last);
+}
+
+function showUndoReasonModal(item){
+  const opts=UNDO_REASONS.map((r,i)=>`<option value="${i}">${r}</option>`).join('');
+  OM('Undo — Reason Required',`
+    <div class="alert al-am mb12">⚠️ You are about to UNDO: <strong>${H(item.label)}</strong><br>
+    This will restore the deleted record. A reason is required for the audit log.</div>
+    <div class="fg">
+      <label class="fl">Reason Category <span class="req">*</span></label>
+      <select class="fc" id="undo-cat">
+        <option value="">-- Select a reason --</option>
+        ${opts}
+      </select>
+    </div>
+    <div class="fg">
+      <label class="fl">Additional Details <span class="req">*</span> <span class="fs11 col-3">(min 10 characters)</span></label>
+      <textarea class="fc" id="undo-detail" rows="3" placeholder="Explain why you are undoing this deletion..."></textarea>
+    </div>`,
+  ()=>{
+    const cat=document.getElementById('undo-cat')?.value;
+    const detail=(document.getElementById('undo-detail')?.value||'').trim();
+    if(!cat){alert('Please select a reason category.');return;}
+    if(detail.length<10){alert('Please provide more details (minimum 10 characters).');return;}
+    // Execute undo
+    const fullReason=UNDO_REASONS[+cat]+' — '+detail;
+    item.restoreFn();
+    _undoStack.pop();
+    log('UNDO',item.label+' | Reason: '+fullReason);
+    save();
+    CM();
+    alert('✅ Undo successful! Record has been restored.\n\nReason logged: '+fullReason);
+    go(CP); // refresh current page
+  });
 }
 
 // ═══════════════════════════════════════════════════
 // MODAL
+
 // ═══════════════════════════════════════════════════
 function OM(title,body,onSave){
   document.getElementById('MTITLE').textContent=title;
@@ -3453,84 +3794,6 @@ document.getElementById('MOV').addEventListener('click',e=>{if(e.target===docume
 // INIT
 // ═══════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════
-// LOGIN SYSTEM
-// ═══════════════════════════════════════════════════
-// Default credentials — change these in Settings
-const DEFAULT_USER = 'maldar';
-const DEFAULT_PASS = 'fleet2024';
-
-function getCredentials(){
-  return {
-    user: localStorage.getItem('FL_USER') || DEFAULT_USER,
-    pass: localStorage.getItem('FL_PASS') || DEFAULT_PASS
-  };
-}
-
-function isLoggedIn(){
-  return sessionStorage.getItem('FL_AUTH') === 'yes';
-}
-
-function doLogin(){
-  const uEl = document.getElementById('login-user');
-  const pEl = document.getElementById('login-pass');
-  const err = document.getElementById('login-err');
-  const scr = document.getElementById('login-screen');
-  const lbtn = document.getElementById('lock-btn');
-  if(!uEl||!pEl) return;
-  const u = uEl.value.trim();
-  const p = pEl.value;
-  const creds = getCredentials();
-  if(!u || !p){
-    if(err){err.textContent='Please enter username and password.';err.classList.add('show');}
-    return;
-  }
-  if(u === creds.user && p === creds.pass){
-    sessionStorage.setItem('FL_AUTH','yes');
-    if(scr) scr.style.display='none';
-    if(lbtn) lbtn.style.display='block';
-    if(err) err.classList.remove('show');
-    go('dashboard');
-  } else {
-    if(err){err.textContent='Incorrect username or password. Please try again.';err.classList.add('show');}
-    pEl.value='';
-    pEl.focus();
-  }
-}
-
-function doLogout(){
-  if(!confirm('Lock the app and sign out?')) return;
-  sessionStorage.removeItem('FL_AUTH');
-  const scr=document.getElementById('login-screen');
-  const lbtn=document.getElementById('lock-btn');
-  const uEl=document.getElementById('login-user');
-  const pEl=document.getElementById('login-pass');
-  if(scr) scr.style.display='flex';
-  if(lbtn) lbtn.style.display='none';
-  if(uEl) uEl.value='';
-  if(pEl) pEl.value='';
-  setTimeout(()=>{ const el=document.getElementById('login-user'); if(el)el.focus(); },100);
-}
-
-function togglePass(){
-  const inp = document.getElementById('login-pass');
-  inp.type = inp.type==='password' ? 'text' : 'password';
-}
-
-function checkAuth(){
-  const scr = document.getElementById('login-screen');
-  const lbtn = document.getElementById('lock-btn');
-  if(!scr) return; // element not in DOM yet - skip
-  if(isLoggedIn()){
-    scr.style.display='none';
-    if(lbtn) lbtn.style.display='block';
-    go('dashboard');
-  } else {
-    scr.style.display='flex';
-    if(lbtn) lbtn.style.display='none';
-    setTimeout(()=>{ const el=document.getElementById('login-user'); if(el)el.focus(); }, 150);
-  }
-}
 
 document.addEventListener('DOMContentLoaded', function(){
   initDB();
