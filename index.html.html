@@ -936,10 +936,16 @@ function pgQuick(){
 </div>
 <div class="card" style="max-width:820px">
 <div class="sdiv">Trip Details — ${H(truckName(qTid))}</div>
+<div class="alert al-bl mb10" style="font-size:12px">💡 <b>Leaving today?</b> Enter Start Date now and save. Come back when truck arrives to fill End Date and End Odometer.</div>
 <div class="fr3">
-  <div class="fg"><label class="fl">Date <span class="req">*</span></label><input type="date" class="fc" id="q-date" value="${today()}"></div>
+  <div class="fg"><label class="fl">Start Date (Departure) <span class="req">*</span></label><input type="date" class="fc" id="q-date" value="${today()}"></div>
   <div class="fg"><label class="fl">From City <span class="req">*</span></label><input type="text" class="fc" id="q-from" placeholder="e.g. Hyderabad" list="q-cities" autocomplete="off"></div>
   <div class="fg"><label class="fl">To City <span class="req">*</span></label><input type="text" class="fc" id="q-to" placeholder="e.g. Chandrapur" list="q-cities" autocomplete="off"></div>
+</div>
+<div class="fr3">
+  <div class="fg"><label class="fl">End Date (Arrival) <span class="fs11 col-3">optional — fill on return</span></label><input type="date" class="fc" id="q-edate" onchange="qCalcKm()"></div>
+  <div class="fg"><label class="fl">End Odometer <span class="fs11 col-3">optional — fill on return</span></label><input type="number" class="fc" id="q-kme" placeholder="0" min="0" oninput="qCalcKm()"></div>
+  <div class="fg"><label class="fl">Trip Status</label><div class="calc" id="q-status" style="font-size:13px;font-weight:700">🟡 In Transit</div></div>
 </div>
 <datalist id="q-cities">${cities.map(c=>`<option value="${H(c)}">`).join('')}</datalist>
 <div class="fr3">
@@ -973,11 +979,10 @@ function pgQuick(){
 <div class="sdiv">Odometer & Distance</div>
 <div class="fr3">
   <div class="fg"><label class="fl">Start Odometer</label><input type="number" class="fc" id="q-kms" placeholder="${odo(qTid)||0}" min="0" oninput="qCalcKm()"></div>
-  <div class="fg"><label class="fl">End Odometer</label><input type="number" class="fc" id="q-kme" placeholder="0" min="0" oninput="qCalcKm()"></div>
-  <div><label class="fl">Trip KM</label><div class="calc" id="q-km">0 km</div><input type="hidden" id="q-km-val" value="0"></div>
+  <div><label class="fl">Trip KM <span class="fs11 col-3">(auto from odo)</span></label><div class="calc" id="q-km">0 km</div><input type="hidden" id="q-km-val" value="0"></div>
+  <div class="fg"><label class="fl">Empty KM (no load)</label><input type="number" class="fc" id="q-ekm" placeholder="0" min="0" oninput="qCalc()"></div>
 </div>
 <div class="fr3 mb8">
-  <div class="fg"><label class="fl">Empty KM (no load)</label><input type="number" class="fc" id="q-ekm" placeholder="0" min="0" oninput="qCalc()"></div>
   <div class="fg"><label class="fl">Days on Road</label><input type="number" class="fc" id="q-days" value="1" min="1"></div>
 </div>
 
@@ -1074,7 +1079,19 @@ function qCalc(){
   if(bkEl){_totalPKM>0&&km3>0?bkEl.textContent=INR(Math.round(_totalPKM*km3)):bkEl.textContent='Set in Fixed Costs';}
 }
 function qFCalc(i){const e=document.getElementById(`f${i}-c`);if(e)e.textContent=INR(nv(`f${i}-l`)*nv(`f${i}-p`));}
-function qCalcKm(){const s=nv('q-kms'),e=nv('q-kme'),k=e>s?e-s:0;const el=document.getElementById('q-km');if(el)el.textContent=KM(k);const hid=document.getElementById('q-km-val');if(hid)hid.value=k;qCalc();}
+function qCalcKm(){
+  const s=nv('q-kms'),e=nv('q-kme');
+  const k=e>s&&s>0?e-s:(e>0?e:0);
+  const el=document.getElementById('q-km');if(el)el.textContent=k>0?KM(k):'—';
+  const hid=document.getElementById('q-km-val');if(hid)hid.value=k;
+  const edate=document.getElementById('q-edate')?.value;
+  const st=document.getElementById('q-status');
+  if(st){
+    if(edate||e>0){st.textContent='✅ Completed';st.style.color='var(--greentxt)';}
+    else{st.textContent='🟡 In Transit';st.style.color='var(--ambertxt)';}
+  }
+  qCalc();
+}
 function qAddFuel(){
   const i=qFC++;const d=document.createElement('div');
   d.className='fuel-row';d.dataset.fi=i;
@@ -1112,7 +1129,9 @@ function qSave(){
   const tid=nid(DB.trips);
   fuelRows.forEach(f=>{f.tripId=tid;DB.fuel.push(f);});
   recalcFuel(qTid);
-  const trip={id:tid,tid:qTid,date,from,to,goods:sv('q-goods'),broker,driver:lv('q-driver'),ttype:lv('q-ttype'),rtype:lv('q-rtype'),qty,rate,income:inc,recv,pending:Math.max(0,inc-recv),payStatus:recv<=0?'Pending':(inc-recv>0?'Partial':'Paid'),toll:t1+t2,load,unload,other,fuelCost:fuelTotal,km,startKm:ks,finalKm:ke,emptyKm:ekm,emptyCost,tyreCost,days:nv('q-days')||1,notes:sv('q-notes')};
+  const edate=sv('q-edate');
+  const tripStatus=edate?'Completed':'In Transit';
+  const trip={id:tid,tid:qTid,date,endDate:edate||'',tripStatus,from,to,goods:sv('q-goods'),broker,driver:lv('q-driver'),ttype:lv('q-ttype'),rtype:lv('q-rtype'),qty,rate,income:inc,recv,pending:Math.max(0,inc-recv),payStatus:recv<=0?'Pending':(inc-recv>0?'Partial':'Paid'),toll:t1+t2,load,unload,other,fuelCost:fuelTotal,km,startKm:ks,finalKm:ke,emptyKm:ekm,emptyCost,tyreCost,days:nv('q-days')||1,notes:sv('q-notes')};
   DB.trips.push(trip);
   log('Trip Added',`${truckName(qTid)}: ${from}→${to} ${INR(inc)}`);
   save();qFC=1;alert('Trip saved! ✓');go('quick');
@@ -1172,10 +1191,12 @@ ${bestTrip&&worstTrip&&bestTrip!==worstTrip?`<div class="g2 mb12">
 </div>`:''}
 ${trips.length===0?emSt('No trips found','Adjust filters or add a trip'):`
 <div class="tbl-wrap"><table>
-<thead><tr><th>#</th><th>Date</th><th>Truck</th><th>Route</th><th>Broker</th><th>Income</th><th>Fuel</th><th>Toll</th><th>Net Profit</th><th>KM</th><th>Cost/KM</th><th>Profit/KM</th><th>Payment</th><th>Pending</th><th></th></tr></thead>
-<tbody>${trips.map(t=>{const c=calcTrip(t);return`<tr>
+<thead><tr><th>#</th><th>Start</th><th>End</th><th>Status</th><th>Truck</th><th>Route</th><th>Broker</th><th>Income</th><th>Fuel</th><th>Toll</th><th>Net Profit</th><th>KM</th><th>Cost/KM</th><th>Profit/KM</th><th>Payment</th><th>Pending</th><th></th></tr></thead>
+<tbody>${trips.map(t=>{const c=calcTrip(t);const inTransit=!t.endDate&&t.tripStatus==='In Transit';return`<tr style="${inTransit?'background:#fffbeb':''}">
   <td class="col-3">${t.id}</td>
   <td style="white-space:nowrap">${fD(t.date)}</td>
+  <td style="white-space:nowrap;color:var(--text3)">${t.endDate?fD(t.endDate):'—'}</td>
+  <td><span class="badge ${inTransit?'b-am':'b-gn'}" style="font-size:10px">${inTransit?'🟡 Transit':'✅ Done'}</span></td>
   <td><span class="badge" style="background:${truckColor(t.tid)}18;color:${truckColor(t.tid)};font-size:10px">${H(truckName(t.tid))}</span></td>
   <td style="white-space:nowrap">${H(t.from||'?')}→${H(t.to||'?')}</td>
   <td>${H(t.broker||'—')}</td>
@@ -1200,11 +1221,18 @@ ${trips.length===0?emSt('No trips found','Adjust filters or add a trip'):`
 
 function openTripModal(id){
   EID=id||null;const t=id?DB.trips.find(x=>x.id===id):{};
-  OM(id?'Edit Trip':'Add Trip',`
+  const isEdit=!!id;
+  OM(isEdit?'Edit Trip #'+id:'Add Trip',`
+    ${isEdit?`<div class="alert al-am mb10" style="font-size:12px">⚠️ <b>Editing existing trip.</b> You must enter a reason for changes at the bottom.</div>`:''}
     <div class="fr3">
-      <div class="fg"><label class="fl">Date</label><input type="date" class="fc" id="mt-date" value="${t.date||today()}"></div>
+      <div class="fg"><label class="fl">Start Date (Departure) <span class="req">*</span></label><input type="date" class="fc" id="mt-date" value="${t.date||today()}"></div>
+      <div class="fg"><label class="fl">End Date (Arrival) <span class="fs11 col-3">optional</span></label><input type="date" class="fc" id="mt-edate" value="${t.endDate||''}"></div>
+      <div class="fg"><label class="fl">End Odometer <span class="fs11 col-3">optional</span></label><input type="number" class="fc" id="mt-eodo" value="${t.finalKm||''}" min="0" placeholder="0"></div>
+    </div>
+    <div class="fr3">
       <div class="fg"><label class="fl">Truck</label><select class="fc" id="mt-tid">${DB.trucks.map(tk=>`<option value="${tk.id}" ${t.tid===tk.id?'selected':''}>${H(tk.reg)}</option>`).join('')}</select></div>
       <div class="fg"><label class="fl">Driver</label><select class="fc" id="mt-drv"><option value="">None/Self</option>${DB.drivers.map(d=>`<option ${t.driver===d.name?'selected':''}>${H(d.name)}</option>`).join('')}</select></div>
+      <div class="fg"><label class="fl">Total KM</label><input type="number" class="fc" id="mt-km" value="${t.km||0}" min="0"></div>
     </div>
     <div class="fr2">
       <div class="fg"><label class="fl">From</label><input type="text" class="fc" id="mt-from" value="${H(t.from||'')}"></div>
@@ -1223,24 +1251,48 @@ function openTripModal(id){
       <div class="fg"><label class="fl">Amount Received (₹)</label><input type="number" class="fc" id="mt-recv" value="${t.recv||0}" min="0" oninput="mtCalc()"></div>
       <div><label class="fl">Payment Status</label><div class="calc" id="mt-pay">${t.payStatus||'Pending'}</div></div>
     </div>
+    <div class="sdiv">Expenses</div>
     <div class="fr3">
-      <div class="fg"><label class="fl">Total Toll (₹)</label><input type="number" class="fc" id="mt-toll" value="${t.toll||0}" min="0"></div>
-      <div class="fg"><label class="fl">Total KM</label><input type="number" class="fc" id="mt-km" value="${t.km||0}" min="0"></div>
+      <div class="fg"><label class="fl">Toll (₹)</label><input type="number" class="fc" id="mt-toll" value="${t.toll||0}" min="0"></div>
       <div class="fg"><label class="fl">Fuel Cost (₹)</label><input type="number" class="fc" id="mt-fuel" value="${t.fuelCost||0}" min="0"></div>
+      <div class="fg"><label class="fl">Loading (₹)</label><input type="number" class="fc" id="mt-load" value="${t.load||0}" min="0"></div>
     </div>
     <div class="fr3">
-      <div class="fg"><label class="fl">Loading (₹)</label><input type="number" class="fc" id="mt-load" value="${t.load||0}" min="0"></div>
       <div class="fg"><label class="fl">Unloading (₹)</label><input type="number" class="fc" id="mt-unload" value="${t.unload||0}" min="0"></div>
+      <div class="fg"><label class="fl">Driver Bata (₹)</label><input type="number" class="fc" id="mt-bata" value="${t.bata||0}" min="0"></div>
       <div class="fg"><label class="fl">Other Exp (₹)</label><input type="number" class="fc" id="mt-other" value="${t.other||0}" min="0"></div>
     </div>
-    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="mt-notes" rows="2">${H(t.notes||'')}</textarea></div>`,
+    <div class="fg"><label class="fl">Notes</label><textarea class="fc" id="mt-notes" rows="2">${H(t.notes||'')}</textarea></div>
+    ${isEdit?`<div class="sdiv">Edit Reason <span class="req">*</span></div>
+    <div class="fg"><label class="fl">Why are you editing this trip? <span class="fs11 col-3">(required, min 10 chars)</span></label>
+      <textarea class="fc" id="mt-reason" rows="2" placeholder="e.g. Truck arrived, adding end odometer and arrival date..."></textarea>
+    </div>`:''}`,
   ()=>{
     const qty=nv('mt-qty')||1,rate=nv('mt-rate'),inc=qty*rate,recv=nv('mt-recv');
     if(recv>inc&&inc>0){alert('Received cannot exceed total income.');return;}
-    const data={date:sv('mt-date'),tid:+lv('mt-tid'),driver:lv('mt-drv'),from:sv('mt-from'),to:sv('mt-to'),broker:sv('mt-broker'),goods:sv('mt-goods'),rtype:lv('mt-rtype'),qty,rate,income:inc,recv,pending:Math.max(0,inc-recv),payStatus:recv<=0?'Pending':(inc-recv>0?'Partial':'Paid'),toll:nv('mt-toll'),km:nv('mt-km'),fuelCost:nv('mt-fuel'),load:nv('mt-load'),unload:nv('mt-unload'),other:nv('mt-other'),notes:sv('mt-notes'),tyreCost:t.tyreCost||0,emptyCost:t.emptyCost||0};
+    if(isEdit){
+      const reason=(document.getElementById('mt-reason')?.value||'').trim();
+      if(reason.length<10){alert('Please enter a reason for editing this trip (minimum 10 characters).');return;}
+    }
+    const edate=sv('mt-edate');
+    const eodo=nv('mt-eodo');
+    const startKm=t.startKm||0;
+    const km=eodo>0&&startKm>0&&eodo>startKm?eodo-startKm:(nv('mt-km')||t.km||0);
+    const tripStatus=edate?'Completed':'In Transit';
+    const bata=nv('mt-bata');
+    const data={date:sv('mt-date'),endDate:edate||'',tripStatus,tid:+lv('mt-tid'),driver:lv('mt-drv'),from:sv('mt-from'),to:sv('mt-to'),broker:sv('mt-broker'),goods:sv('mt-goods'),rtype:lv('mt-rtype'),qty,rate,income:inc,recv,pending:Math.max(0,inc-recv),payStatus:recv<=0?'Pending':(inc-recv>0?'Partial':'Paid'),toll:nv('mt-toll'),km,finalKm:eodo||t.finalKm||0,fuelCost:nv('mt-fuel'),load:nv('mt-load'),unload:nv('mt-unload'),bata,other:nv('mt-other'),notes:sv('mt-notes'),tyreCost:t.tyreCost||0,emptyCost:t.emptyCost||0};
     ensureBroker(data.broker);
-    if(EID){const i=DB.trips.findIndex(x=>x.id===EID);if(i>=0){DB.trips[i]={...DB.trips[i],...data};log('Trip Edited',`#${EID}`);}}
-    else{DB.trips.push({id:nid(DB.trips),...data});log('Trip Added',`${data.from}→${data.to} ${INR(inc)}`);}
+    if(EID){
+      const i=DB.trips.findIndex(x=>x.id===EID);
+      if(i>=0){
+        const reason=document.getElementById('mt-reason')?.value?.trim()||'';
+        DB.trips[i]={...DB.trips[i],...data};
+        log('Trip Edited','#'+EID+' — Reason: '+reason);
+      }
+    } else {
+      DB.trips.push({id:nid(DB.trips),...data});
+      log('Trip Added',data.from+'→'+data.to+' '+INR(inc));
+    }
     save();CM();go('trips');
   });
 }
