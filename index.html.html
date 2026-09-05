@@ -501,13 +501,134 @@ const emSt=(t,s)=>`<div class="empty"><svg viewBox="0 0 24 24" fill="none" strok
 // DATABASE
 // ═══════════════════════════════════════════════════
 const KEY='MALDAR_FLEET_v1';
+const SYNC_KEY='maldar_sync';
 let DB={};
+let _syncEnabled=false;
 
-function initDB(){
-  try{const r=localStorage.getItem(KEY);if(r)DB=migrate(JSON.parse(r));else DB=fresh();}
-  catch(e){DB=fresh();}
+// ── Detect if Chrome Sync is available ────────────────────────────────────────
+function hasChromeSync(){
+  try{return !!(window.chrome&&chrome.storage&&chrome.storage.sync);}
+  catch(e){return false;}
 }
-function save(){DB._v=(+(DB._v)||0)+1;DB._ts=now();localStorage.setItem(KEY,JSON.stringify(DB));}
+
+// ── INIT: read from both localStorage + Chrome Sync, use newest ───────────────
+function initDB(){
+  _syncEnabled=hasChromeSync();
+  // First load from localStorage immediately so app starts fast
+  try{
+    const r=localStorage.getItem(KEY);
+    if(r)DB=migrate(JSON.parse(r));else DB=fresh();
+  }catch(e){DB=fresh();}
+
+  // Then check Chrome Sync for newer version
+  if(_syncEnabled){
+    chrome.storage.sync.get(SYNC_KEY,function(result){
+      if(chrome.runtime.lastError)return; // sync not available
+      const synced=result[SYNC_KEY];
+      if(!synced)return;
+      try{
+        const syncParsed=typeof synced==='string'?JSON.parse(synced):synced;
+        const syncV=+(syncParsed._v)||0;
+        const localV=+(DB._v)||0;
+        if(syncV>localV){
+          // Sync has newer data — use it and update localStorage
+          DB=migrate(syncParsed);
+          localStorage.setItem(KEY,JSON.stringify(DB));
+          // Refresh current page to show new data
+          if(typeof go==='function')go(CP||'dashboard');
+          showSyncBanner('✅ Synced from your other device');
+        }else if(localV>syncV){
+          // Local is newer — push to sync
+          pushToSync();
+        }
+      }catch(e){}
+    });
+  }
+}
+
+// ── SAVE: write to localStorage + Chrome Sync ─────────────────────────────────
+function save(){
+  DB._v=(+(DB._v)||0)+1;
+  DB._ts=now();
+  // Always save to localStorage first
+  localStorage.setItem(KEY,JSON.stringify(DB));
+  // Push to Chrome Sync if available
+  if(_syncEnabled)pushToSync();
+}
+
+function pushToSync(){
+  if(!hasChromeSync())return;
+  try{
+    const data=JSON.stringify(DB);
+    // Chrome sync limit is ~100KB per item — warn if approaching
+    if(data.length>90000){
+      // Store compressed (split large arrays to keep under limit)
+      const compact={...DB,activity:(DB.activity||[]).slice(-50)};
+      chrome.storage.sync.set({[SYNC_KEY]:JSON.stringify(compact)},function(){
+        if(chrome.runtime.lastError){
+          // Sync quota exceeded — silently fall back to localStorage only
+          _syncEnabled=false;
+        }
+      });
+    } else {
+      chrome.storage.sync.set({[SYNC_KEY]:data},function(){
+        if(chrome.runtime.lastError)_syncEnabled=false;
+      });
+    }
+  }catch(e){_syncEnabled=false;}
+}
+
+// ── Sync status banner ────────────────────────────────────────────────────────
+function showSyncBanner(msg){
+  let b=document.getElementById('_sync-banner');
+  if(!b){
+    b=document.createElement('div');
+    b.id='_sync-banner';
+    b.style.cssText='position:fixed;top:0;left:0;right:0;background:#1e40af;color:#fff;text-align:center;font-size:13px;font-weight:600;padding:6px;z-index:9999;transition:opacity .5s';
+    document.body.appendChild(b);
+  }
+  b.textContent=msg;b.style.opacity='1';
+  setTimeout(()=>{b.style.opacity='0';},3000);
+}
+
+// ── Manual sync button (in Settings) ─────────────────────────────────────────
+function manualSync(){
+  if(!hasChromeSync()){
+    alert('Chrome Sync not available.\n\nMake sure you are using Google Chrome and logged into your Google account on both devices.');
+    return;
+  }
+  showSyncBanner('⏳ Syncing...');
+  chrome.storage.sync.get(SYNC_KEY,function(result){
+    if(chrome.runtime.lastError){
+      alert('Sync failed: '+chrome.runtime.lastError.message);
+      return;
+    }
+    const synced=result[SYNC_KEY];
+    if(synced){
+      try{
+        const syncParsed=typeof synced==='string'?JSON.parse(synced):synced;
+        const syncV=+(syncParsed._v)||0;
+        const localV=+(DB._v)||0;
+        if(syncV>localV){
+          if(confirm('Your other device has newer data (v'+syncV+' vs your v'+localV+'). Sync from other device? Your current data will be replaced.')){
+            DB=migrate(syncParsed);
+            localStorage.setItem(KEY,JSON.stringify(DB));
+            go(CP||'dashboard');
+            showSyncBanner('✅ Synced from other device — data updated');
+          }
+        } else {
+          // Push local to sync
+          pushToSync();
+          showSyncBanner('✅ Your data pushed to sync — other device will update on next open');
+        }
+      }catch(e){alert('Sync data corrupted: '+e.message);}
+    } else {
+      // Nothing in sync yet — push local
+      pushToSync();
+      showSyncBanner('✅ Data saved to Chrome Sync for the first time');
+    }
+  });
+}
 function migrate(d){
   const f=fresh();
   ['trucks','trips','fuel','expenses','loans','loanPay','tyres','maint','docs','fixed','savings','drivers','brokers','paddySeas','paddyEntr','activity'].forEach(k=>{
@@ -576,6 +697,30 @@ function tyrePKMfor(tid){
   const totC=tyres.reduce((s,x)=>s+(+(x.cost)||0),0);
   const totE=tyres.reduce((s,x)=>s+(+(x.exp)||0),0);
   return totE>0?totC/totE:0;
+}
+
+function insurancePKMfor(tid){
+  // Returns insurance+permit cost per km from Fixed Costs (annual items)
+  // Looks for fixed cost items tagged as Insurance/Permit
+  const insItems=DB.fixed.filter(f=>(!tid||f.tid===tid)&&
+    /insurance|permit|fitness|tax|rc|road|green/i.test(f.item||''));
+  const annualCost=insItems.reduce((s,f)=>s+(+(f.annual)||0),0);
+  if(annualCost===0)return 0;
+  // Estimate annual km from trip data
+  const trips=DB.trips.filter(t=>!tid||t.tid===tid);
+  const months=Math.max(1,new Set(trips.map(t=>t.date?.slice(0,7))).size);
+  const totKm=trips.reduce((s,t)=>s+(+(t.km)||0),0);
+  const annKm=months>0?(totKm/months)*12:0;
+  return annKm>0?annualCost/annKm:0;
+}
+
+function maintPKMfor(tid){
+  // Returns maintenance cost per km from all logged maintenance costs
+  const allMaint=DB.maint.filter(m=>!tid||m.tid===tid);
+  const totMaintCost=allMaint.reduce((s,m)=>s+(+(m.cost)||0),0);
+  const trips=DB.trips.filter(t=>!tid||t.tid===tid);
+  const totKm=trips.reduce((s,t)=>s+(+(t.km)||0),0);
+  return totKm>0?totMaintCost/totKm:0;
 }
 
 function calcTrip(t){
@@ -1298,7 +1443,7 @@ ${bestTrip&&worstTrip&&bestTrip!==worstTrip?`<div class="g2 mb12">
 </div>`:''}
 ${trips.length===0?emSt('No trips found','Adjust filters or add a trip'):`
 <div class="tbl-wrap"><table>
-<thead><tr><th>#</th><th>Start</th><th>End</th><th>Trip Status</th><th>Dir</th><th>Truck</th><th>Route</th><th>Broker</th><th>Income</th><th>Fuel</th><th>Toll</th><th>Net Profit</th><th>KM</th><th>Cost/KM</th><th>Profit/KM</th><th>Payment</th><th>Pending</th><th></th></tr></thead>
+<thead><tr><th>#</th><th>Start</th><th>End</th><th>Trip Status</th><th>Dir</th><th>Truck</th><th>Route</th><th>Broker</th><th>Income</th><th>Fuel</th><th>Toll</th><th>Tyre</th><th>Ins+Permit</th><th>Op.Profit</th><th>True Profit</th><th>KM</th><th>Cost/KM</th><th>Op.P/KM</th><th>True P/KM</th><th>Payment</th><th>Pending</th><th></th></tr></thead>
 <tbody>${trips.map(t=>{const c=calcTrip(t);const s=t.tripStatus||'In Transit';const rowBg=s==='Loaded'?'background:#eff6ff':s==='In Transit'?'background:#fffbeb':s==='Delivered'?'background:#f0fdf4':'';const inTransit=s==='In Transit';return`<tr style="${rowBg}">
   <td class="col-3">${t.id}</td>
   <td style="white-space:nowrap">${fD(t.date)}</td>
@@ -1321,11 +1466,26 @@ ${trips.length===0?emSt('No trips found','Adjust filters or add a trip'):`
   <td class="tr">${INR(c.income)}</td>
   <td class="tr">${INR(c.fuel)}</td>
   <td class="tr">${INR(c.toll)}</td>
-  <td class="tr fw6" style="color:${c.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(c.net)}</td>
-  <td>${t.km?KM(t.km):'—'}</td>
-  <td class="tr"><span class="pkm-pill">${t.km>0?'₹'+(c.exp/t.km).toFixed(1)+'/km':'—'}</span></td>
-  <td class="tr"><span class="pkm-pill ${t.km>0?(c.net/t.km>10?'good':c.net/t.km>0?'warn':'bad'):''}">
-    ${t.km>0?'₹'+(c.net/t.km).toFixed(1)+'/km':'—'}</span></td>
+  <td class="tr fs11">${c.tyre>0?INR(c.tyre):'—'}</td>
+  ${(()=>{
+    const insPKM=insurancePKMfor(t.tid||1);
+    const insCost=Math.round(insPKM*(+(t.km)||0));
+    const maintPKM=maintPKMfor(t.tid||1);
+    const maintCost=Math.round(maintPKM*(+(t.km)||0));
+    const hiddenCost=insCost+maintCost;
+    const trueNet=c.net-hiddenCost;
+    const trueNetPKM=+(t.km)>0?trueNet/+(t.km):0;
+    return`
+      <td class="tr fs11" title="Insurance+Permit: ₹${insCost} | Maintenance: ₹${maintCost}">${hiddenCost>0?INR(hiddenCost):'—'}</td>
+      <td class="tr fw6" style="color:${c.net>=0?'var(--greentxt)':'var(--redtxt)'}">${INR(c.net)}</td>
+      <td class="tr fw6" style="color:${trueNet>=0?'var(--greentxt)':'var(--redtxt)'}" title="After insurance+permit+maintenance">${INR(trueNet)}</td>
+      <td>${t.km?KM(t.km):'—'}</td>
+      <td class="tr"><span class="pkm-pill">${t.km>0?'₹'+(c.exp/t.km).toFixed(1)+'/km':'—'}</span></td>
+      <td class="tr"><span class="pkm-pill ${t.km>0?(c.net/t.km>10?'good':c.net/t.km>0?'warn':'bad'):''}">
+        ${t.km>0?'₹'+(c.net/t.km).toFixed(1)+'/km':'—'}</span></td>
+      <td class="tr"><span class="pkm-pill ${t.km>0?(trueNetPKM>10?'good':trueNetPKM>0?'warn':'bad'):''}">
+        ${t.km>0?'₹'+trueNetPKM.toFixed(1)+'/km':'—'}</span></td>`;
+  })()}
   <td><span class="badge ${t.payStatus==='Paid'?'b-gn':t.payStatus==='Partial'?'b-am':'b-rd'}">${t.payStatus||'Pending'}</span></td>
   <td class="tr">${INR(t.pending||0)}</td>
   <td style="white-space:nowrap">
@@ -3080,9 +3240,15 @@ function pgSettings(){
       <div class="sdiv">Data Management</div>
       <div class="alert al-bl mb10">Last saved: ${H(DB._ts||'Never')} · Version: ${DB._v||1}</div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn" onclick="exportData()">📥 Export Backup (JSON)</button>
-        <button class="btn" onclick="importData()">📤 Import Backup</button>
-        <button class="btn btn-danger" onclick="if(confirm('⚠️ Delete ALL data permanently? This cannot be undone.\\n\\nExport a backup first!'))resetData()">🗑 Reset All Data</button>
+        <div class="sdiv">☁️ Cross-Device Sync</div>
+        <div class="mb8"><span class="badge ${hasChromeSync()?'b-gn':'b-rd'}">${hasChromeSync()?'✅ Chrome Sync Active':'❌ Not Available — use manual backup'}</span></div>
+        <div class="fs11 col-3 mb8">Auto-syncs via Chrome when signed into same Google account on all devices. Tap Sync Now if data is missing on this device.</div>
+        <button class="btn btn-primary" onclick="manualSync()">🔄 Sync Now — Push / Pull Latest Data</button>
+        <div class="sdiv">📦 Manual Backup</div>
+        <button class="btn" onclick="exportData()">📤 Export Backup (JSON)</button>
+        <button class="btn" onclick="importData()">📥 Import Backup</button>
+        <div class="alert al-bl" style="font-size:11px">💡 Quick sync tip: Export on laptop → send JSON file to phone via WhatsApp → Import on phone.</div>
+        <button class="btn btn-danger" onclick="if(confirm('⚠️ Delete ALL data permanently? This cannot be undone.\n\nExport a backup first!'))resetData()">🗑 Reset All Data</button>
       </div>
     </div>
   </div>
@@ -3599,12 +3765,18 @@ function pgMonthly(){
   <span class="badge b-bl">${MN[mrMon]} ${mrYr}</span>
 </div>
 <div id="mr-body">
-<div class="g4 mb14">
-  <div class="hmetric hero-blue"><div class="mlabel">Gross Income</div><div class="mval">${INR(s.inc)}</div><div class="msub">${s.trips} trips</div></div>
-  <div class="hmetric ${s.net>=0?'hero-green':'hero-red'}"><div class="mlabel">Net Profit</div><div class="mval">${INR(s.net)}</div><div class="msub">${s.net>=0?'↑ Profitable':'↓ Loss'}</div></div>
-  <div class="hmetric hero-amber"><div class="mlabel">Total Expenses</div><div class="mval">${INR(s.exp)}</div><div class="msub">All costs</div></div>
-  <div class="hmetric hero-purple"><div class="mlabel">KM Driven</div><div class="mval">${Math.round(totKm).toLocaleString('en-IN')}</div><div class="msub">${Math.round(totEmpty)} km empty</div></div>
-</div>
+${(()=>{
+  const insPKM=insurancePKMfor(mrTid);
+  const mPKM=maintPKMfor(mrTid);
+  const hiddenTotal=Math.round((insPKM+mPKM)*totKm);
+  const trueNet=s.net-hiddenTotal;
+  return`<div class="g4 mb14">
+    <div class="hmetric hero-blue"><div class="mlabel">Gross Income</div><div class="mval">${INR(s.inc)}</div><div class="msub">${s.trips} trips</div></div>
+    <div class="hmetric ${s.net>=0?'hero-green':'hero-red'}"><div class="mlabel">Op. Profit</div><div class="mval">${INR(s.net)}</div><div class="msub">Fuel+toll+tyre+load</div></div>
+    ${hiddenTotal>0?`<div class="hmetric" style="background:linear-gradient(135deg,#92400e,#b45309);color:#fff"><div class="mlabel">True Profit</div><div class="mval">${INR(trueNet)}</div><div class="msub">After ins+permit+maint</div></div>`:`<div class="hmetric hero-amber"><div class="mlabel">Total Expenses</div><div class="mval">${INR(s.exp)}</div><div class="msub">All costs</div></div>`}
+    <div class="hmetric hero-purple"><div class="mlabel">KM Driven</div><div class="mval">${Math.round(totKm).toLocaleString('en-IN')}</div><div class="msub">${Math.round(totEmpty)} km empty</div></div>
+  </div>`;
+})()}
 <div class="g3 mb14">
   <div class="card">
     <div class="sdiv">⛽ Fuel Summary</div>
@@ -3615,12 +3787,23 @@ function pgMonthly(){
   </div>
   <div class="card">
     <div class="sdiv">📊 Key Ratios</div>
-    <div class="cost-row"><div><div class="fw6">Cost per KM</div><div class="fs11 col-3">All costs</div></div><div class="fw7">${totKm>0?'₹'+(s.exp/totKm).toFixed(2):'—'}</div></div>
-    <div class="cost-row"><div><div class="fw6">Profit per KM</div><div class="fs11 col-3">Net earning</div></div><div class="fw7 ${s.net>=0?'col-g':'col-r'}">${totKm>0?'₹'+(s.net/totKm).toFixed(2):'—'}</div></div>
-    <div class="cost-row"><div><div class="fw6">Income per Trip</div></div><div class="fw7">${s.trips>0?INR(s.inc/s.trips):'—'}</div></div>
-    <div class="cost-row"><div><div class="fw6">Profit per Trip</div></div><div class="fw7 ${s.net>=0?'col-g':'col-r'}">${s.trips>0?INR(s.net/s.trips):'—'}</div></div>
-    <div class="cost-row"><div><div class="fw6">Profit Margin</div></div><div class="fw7">${s.inc>0?((s.net/s.inc)*100).toFixed(1)+'%':'—'}</div></div>
-    <div class="cost-row"><div><div class="fw6">Empty KM</div><div class="fs11 col-3">of total</div></div><div class="fw7 ${totKm>0&&totEmpty/totKm>0.2?'col-r':'col-g'}">${totKm>0?((totEmpty/totKm)*100).toFixed(1)+'%':'—'}</div></div>
+    ${(()=>{
+      const insPKM=insurancePKMfor(mrTid);
+      const mPKM=maintPKMfor(mrTid);
+      const hiddenPKM=insPKM+mPKM;
+      const hiddenTotal=Math.round(hiddenPKM*totKm);
+      const trueNet=s.net-hiddenTotal;
+      const trueNetPKM=totKm>0?trueNet/totKm:0;
+      return`
+      <div class="cost-row"><div><div class="fw6">Cost per KM</div><div class="fs11 col-3">All costs incl. tyre</div></div><div class="fw7">${totKm>0?'₹'+(s.exp/totKm).toFixed(2):'—'}</div></div>
+      <div class="cost-row"><div><div class="fw6">Operating Profit/KM</div><div class="fs11 col-3">Fuel+toll+load+tyre</div></div><div class="fw7 ${s.net>=0?'col-g':'col-r'}">${totKm>0?'₹'+(s.net/totKm).toFixed(2):'—'}</div></div>
+      ${hiddenTotal>0?`<div class="cost-row" style="background:#fff7ed"><div><div class="fw6">Ins+Permit+Maint</div><div class="fs11 col-3">Hidden cost this month</div></div><div class="fw7 col-a">${INR(hiddenTotal)}</div></div>`:''}
+      ${hiddenTotal>0?`<div class="cost-row" style="background:#fff7ed"><div><div class="fw6 col-r">True Profit/KM</div><div class="fs11 col-3">After ALL hidden costs</div></div><div class="fw7 ${trueNet>=0?'col-g':'col-r'}">${totKm>0?'₹'+trueNetPKM.toFixed(2):'—'}</div></div>`:''}
+      <div class="cost-row"><div><div class="fw6">Income per Trip</div></div><div class="fw7">${s.trips>0?INR(s.inc/s.trips):'—'}</div></div>
+      <div class="cost-row"><div><div class="fw6">Profit per Trip</div></div><div class="fw7 ${s.net>=0?'col-g':'col-r'}">${s.trips>0?INR(s.net/s.trips):'—'}</div></div>
+      <div class="cost-row"><div><div class="fw6">Profit Margin</div></div><div class="fw7">${s.inc>0?((s.net/s.inc)*100).toFixed(1)+'%':'—'}</div></div>
+      <div class="cost-row"><div><div class="fw6">Empty KM</div><div class="fs11 col-3">of total</div></div><div class="fw7 ${totKm>0&&totEmpty/totKm>0.2?'col-r':'col-g'}">${totKm>0?((totEmpty/totKm)*100).toFixed(1)+'%':'—'}</div></div>`;
+    })()}
   </div>
   <div class="card">
     <div class="sdiv">🧾 Expenses</div>
