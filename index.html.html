@@ -2497,6 +2497,76 @@ ${hasData?`
 </div>
 >`:''}
 
+<div class="card mb16">
+  <div class="fw7 mb4" style="font-size:14px">🧮 Load Acceptance Calculator</div>
+  <div class="infobox mb12">Enter the load details below. The calculator shows your real break-even rate and suggested quote including tyre wear, driver cost, and fixed costs — before you say yes to a broker.</div>
+
+  <div class="fr2">
+    <div class="fg"><label class="fl">Select Truck</label>
+      <select class="fc" id="lac-tid" onchange="lacCalc()">
+        ${DB.trucks.map(t=>`<option value="${t.id}" ${fixTid===t.id?'selected':''}>${H(t.reg)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg"><label class="fl">Route (From → To)</label>
+      <input type="text" class="fc" id="lac-route" placeholder="e.g. Hyderabad → Kagaznagar" oninput="lacCalc()">
+    </div>
+  </div>
+
+  <div class="fr3">
+    <div class="fg"><label class="fl">One-Way Distance (km) <span class="req">*</span></label>
+      <input type="number" class="fc" id="lac-dist" placeholder="420" min="0" oninput="lacCalc()">
+    </div>
+    <div class="fg"><label class="fl">Empty Return KM <span class="fs11 col-3">0 if return loaded</span></label>
+      <input type="number" class="fc" id="lac-empty" placeholder="0" min="0" oninput="lacCalc()">
+    </div>
+    <div class="fg"><label class="fl">Days on Road <span class="req">*</span></label>
+      <input type="number" class="fc" id="lac-days" placeholder="2" min="1" value="1" oninput="lacCalc()">
+    </div>
+  </div>
+
+  <div class="fr3">
+    <div class="fg"><label class="fl">Diesel Rate (₹/L) <span class="req">*</span></label>
+      <input type="number" class="fc" id="lac-diesel" placeholder="95" min="0" step="0.5" oninput="lacCalc()">
+    </div>
+    <div class="fg"><label class="fl">Truck Mileage (km/L) <span class="fs11 col-3">from fuel log</span></label>
+      <input type="number" class="fc" id="lac-mileage" placeholder="${avgMil(fixTid)||4}" min="0" step="0.1" oninput="lacCalc()">
+    </div>
+    <div class="fg"><label class="fl">Expected Toll (₹)</label>
+      <input type="number" class="fc" id="lac-toll" placeholder="0" min="0" oninput="lacCalc()">
+    </div>
+  </div>
+
+  <div class="fr3">
+    <div class="fg"><label class="fl">Loading + Unloading (₹)</label>
+      <input type="number" class="fc" id="lac-load" placeholder="0" min="0" oninput="lacCalc()">
+    </div>
+    <div class="fg"><label class="fl">Other Expenses (₹)</label>
+      <input type="number" class="fc" id="lac-other" placeholder="0" min="0" oninput="lacCalc()">
+    </div>
+    <div class="fg"><label class="fl">Tyre Cost/km (₹) <span class="fs11 col-3">auto from tyre tracker</span></label>
+      <input type="number" class="fc" id="lac-tyre" placeholder="0.23" min="0" step="0.01" oninput="lacCalc()">
+    </div>
+  </div>
+
+  <div class="fr2 mb12">
+    <div class="fg"><label class="fl">Driver Salary (₹/month) <span class="fs11 col-3">auto from driver record</span></label>
+      <input type="number" class="fc" id="lac-salary" placeholder="0" min="0" oninput="lacCalc()">
+    </div>
+    <div class="fg"><label class="fl">Target Profit (₹) <span class="fs11 col-3">your desired profit</span></label>
+      <input type="number" class="fc" id="lac-profit" placeholder="12000" min="0" value="12000" oninput="lacCalc()">
+    </div>
+  </div>
+
+  <div id="lac-result" style="display:none">
+    <div class="sdiv">📊 Cost Breakdown</div>
+    <div class="fr3 mb10" id="lac-breakdown"></div>
+    <div class="g3 mb12" id="lac-summary"></div>
+    <div class="alert al-gn" id="lac-verdict" style="font-size:13px"></div>
+  </div>
+
+  <button class="btn btn-primary" style="width:100%" onclick="lacCalc()">Calculate →</button>
+</div>
+
 <div class="card">
   <div class="fw6 mb12" style="font-size:13px">Fixed Annual Costs — ${H(truckName(fixTid))}</div>
   <div class="tbl-wrap mb10"><table>
@@ -2516,7 +2586,111 @@ ${hasData?`
   <button class="btn btn-sm" style="margin-top:10px" onclick="openFixedModal()">+ Add Fixed Cost</button>
 </div>`;
 }
-function afterFixed(){}
+function afterFixed(){
+  calcRate();
+  lacAutoFill();
+}
+
+function lacAutoFill(){
+  const tidEl=document.getElementById('lac-tid');
+  const tid=tidEl?+(tidEl.value)||fixTid:fixTid;
+  // Auto-fill tyre cost per km from tyre tracker
+  const tyres=DB.tyres.filter(t=>t.tid===tid);
+  const totCost=tyres.reduce((s,t)=>s+(+(t.cost)||0),0);
+  const totExp=tyres.reduce((s,t)=>s+(+(t.exp)||0),0);
+  const tyreCPKM=totExp>0?(totCost/totExp):0;
+  const tyreEl=document.getElementById('lac-tyre');
+  if(tyreEl&&!tyreEl.dataset.manual)tyreEl.value=tyreCPKM>0?tyreCPKM.toFixed(3):'';
+  // Auto-fill driver salary
+  const drv=DB.drivers.find(d=>d.truckId===tid);
+  const salEl=document.getElementById('lac-salary');
+  if(salEl&&!salEl.dataset.manual)salEl.value=drv?(+(drv.salary)||0):'';
+  // Auto-fill mileage
+  const mil=avgMil(tid);
+  const milEl=document.getElementById('lac-mileage');
+  if(milEl&&!milEl.dataset.manual)milEl.value=mil>0?mil:'';
+}
+
+function lacCalc(){
+  lacAutoFill();
+  const dist=+(document.getElementById('lac-dist')?.value||0);
+  const empty=+(document.getElementById('lac-empty')?.value||0);
+  const days=+(document.getElementById('lac-days')?.value||1)||1;
+  const diesel=+(document.getElementById('lac-diesel')?.value||0);
+  const mileage=+(document.getElementById('lac-mileage')?.value||0);
+  const toll=+(document.getElementById('lac-toll')?.value||0);
+  const load=+(document.getElementById('lac-load')?.value||0);
+  const other=+(document.getElementById('lac-other')?.value||0);
+  const tyreCPKM=+(document.getElementById('lac-tyre')?.value||0);
+  const salary=+(document.getElementById('lac-salary')?.value||0);
+  const targetProfit=+(document.getElementById('lac-profit')?.value||12000);
+  const tidEl=document.getElementById('lac-tid');
+  const tid=tidEl?+(tidEl.value)||fixTid:fixTid;
+  const result=document.getElementById('lac-result');
+  if(dist<=0||diesel<=0){if(result)result.style.display='none';return;}
+  const totalKm=dist+empty;
+  const fuelLtrs=mileage>0?totalKm/mileage:0;
+  const fuelCost=Math.round(fuelLtrs*diesel);
+  const tyreCost=Math.round(tyreCPKM*totalKm);
+  const driverPerDay=salary>0?salary/30:0;
+  const driverCost=Math.round(driverPerDay*days);
+  // fixed cost per trip
+  const fixAnn=DB.fixed.filter(f=>f.tid===tid).reduce((s,f)=>s+(+(f.annual)||0),0);
+  const allT=DB.trips.filter(t=>t.tid===tid);
+  const months=Math.max(1,new Set(allT.map(t=>t.date?.slice(0,7))).size);
+  const avgTPM=allT.length>0?allT.length/months:8;
+  const fixPerTrip=Math.round(fixAnn/(avgTPM*12));
+  const totalCost=fuelCost+toll+load+other+tyreCost+driverCost+fixPerTrip;
+  const breakEven=Math.ceil(totalCost);
+  const suggested=Math.ceil(totalCost+targetProfit);
+  // breakdown
+  const bd=document.getElementById('lac-breakdown');
+  if(bd){
+    const row=(icon,lbl,val,note)=>
+      '<div style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);margin-bottom:6px">'+
+      '<div style="display:flex;justify-content:space-between">'+
+      '<span style="font-size:12px;font-weight:600">'+icon+' '+lbl+'</span>'+
+      '<span style="font-weight:800;color:var(--redtxt)">'+INR(val)+'</span></div>'+
+      (note?'<div style="font-size:10px;color:var(--text3);margin-top:2px">'+note+'</div>':'')+
+      '</div>';
+    bd.innerHTML=
+      row('⛽','Fuel Cost',fuelCost,fuelLtrs>0?fuelLtrs.toFixed(1)+'L × ₹'+diesel+'/L ('+totalKm+' km total)':'Enter mileage to calculate fuel cost')+
+      row('🛣️','Toll',toll,'Expected toll charges')+
+      row('📦','Loading / Unloading',load+other,'All trip-related labour and misc costs')+
+      row('🛞','Tyre Wear',tyreCost,tyreCPKM>0?'₹'+tyreCPKM.toFixed(3)+'/km × '+totalKm+' km':'Add tyre cost in Tyre Tracker for auto-fill')+
+      row('👤','Driver Cost',driverCost,'₹'+Math.round(driverPerDay)+'/day × '+days+' days')+
+      row('📋','Fixed Cost Share',fixPerTrip,'Annual fixed costs spread across avg '+Math.round(avgTPM)+' trips/month');
+  }
+  const sm=document.getElementById('lac-summary');
+  if(sm){
+    sm.innerHTML=
+      '<div class="metric rd"><div class="mlabel">Total Cost</div><div class="mval">'+INR(totalCost)+'</div><div class="msub">All expenses</div></div>'+
+      '<div class="metric am"><div class="mlabel">Break-Even Rate</div><div class="mval">'+INR(breakEven)+'</div><div class="msub">Min to not lose money</div></div>'+
+      '<div class="metric gn"><div class="mlabel">Suggested Quote</div><div class="mval">'+INR(suggested)+'</div><div class="msub">To earn ₹'+targetProfit.toLocaleString('en-IN')+' profit</div></div>';
+  }
+  const vd=document.getElementById('lac-verdict');
+  if(vd){
+    const cpkm=totalKm>0?(totalCost/totalKm):0;
+    const ppkm=dist>0?(targetProfit/dist):0;
+    vd.innerHTML=
+      '<div style="font-size:15px;font-weight:800;margin-bottom:10px">📞 What To Tell the Broker</div>'+
+      '<div style="font-size:14px;margin-bottom:6px;padding:8px 12px;background:#dcfce7;border-radius:8px;border-left:4px solid #16a34a">'+
+      '✅ <b>Accept if rate ≥ '+INR(breakEven)+'</b> — covers all your costs</div>'+
+      '<div style="font-size:14px;margin-bottom:6px;padding:8px 12px;background:#dbeafe;border-radius:8px;border-left:4px solid #2563eb">'+
+      '💰 <b>Quote '+INR(suggested)+'</b> to earn your target profit of ₹'+targetProfit.toLocaleString('en-IN')+'</div>'+
+      '<div style="font-size:14px;margin-bottom:12px;padding:8px 12px;background:#fee2e2;border-radius:8px;border-left:4px solid #dc2626">'+
+      '❌ <b>Reject if rate &lt; '+INR(Math.ceil(totalCost*0.9))+'</b> — you will make a loss after all costs</div>'+
+      '<div style="font-size:11px;color:var(--text3);border-top:1px solid var(--border);padding-top:8px">'+
+      'Cost/KM: ₹'+cpkm.toFixed(1)+' · '+
+      'Profit/KM at target: ₹'+ppkm.toFixed(1)+' · '+
+      'Total KM: '+Math.round(totalKm)+
+      (fuelLtrs>0?' · Diesel needed: '+fuelLtrs.toFixed(1)+'L':'')+
+      '</div>';
+    vd.style.display='block';
+  }
+  if(result)result.style.display='block';
+}
+
 function updFixed(id,v){const f=DB.fixed.find(x=>x.id===id);if(f){f.annual=Math.max(0,+(v||0));save();}}
 function delFixed(id){
   const f=DB.fixed.find(x=>x.id===id);if(!f)return;
