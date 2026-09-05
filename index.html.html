@@ -570,6 +570,14 @@ function mkSavings(){
 // ═══════════════════════════════════════════════════
 // CORE CALCULATIONS (single source of truth)
 // ═══════════════════════════════════════════════════
+function tyrePKMfor(tid){
+  // Returns tyre cost per km for a truck from Tyre Tracker data
+  const tyres=DB.tyres.filter(x=>x.tid===tid);
+  const totC=tyres.reduce((s,x)=>s+(+(x.cost)||0),0);
+  const totE=tyres.reduce((s,x)=>s+(+(x.exp)||0),0);
+  return totE>0?totC/totE:0;
+}
+
 function calcTrip(t){
   const income=+(t.income)||0;
   const fuel=+(t.fuelCost)||0;
@@ -577,12 +585,17 @@ function calcTrip(t){
   const load=+(t.load)||0;
   const unload=+(t.unload)||0;
   const other=+(t.other)||0;
-  const tyre=+(t.tyreCost)||0;
+  const bata=+(t.bata)||0;
   const empty=+(t.emptyCost)||0;
-  const exp=fuel+toll+load+unload+other+tyre+empty;
+  const km=+(t.km)||0;
+  // Tyre cost: use saved value if manually entered, else auto from tyre tracker
+  const tyreSaved=+(t.tyreCost)||0;
+  const tyreAuto=tyrePKMfor(t.tid||1)*km;
+  const tyre=tyreSaved>0?tyreSaved:tyreAuto;
+  const exp=fuel+toll+load+unload+bata+other+tyre+empty;
   const net=income-exp;
-  const km=+(t.km)||1;
-  return{income,fuel,toll,load,unload,other,tyre,empty,exp,net,cpkm:exp/km,ppkm:net/km};
+  const kmD=km||1;
+  return{income,fuel,toll,load,unload,bata,other,tyre,tyreAuto,empty,exp,net,cpkm:exp/kmD,ppkm:net/kmD,km};
 }
 
 function odo(tid){
@@ -601,10 +614,16 @@ function mStats(tid,y,m){
     if(tid&&e.tid!==tid)return false;
     const d=new Date(e.date);return d.getFullYear()===y&&d.getMonth()===m;
   });
-  let inc=0,fuel=0,toll=0,load=0,net=0,km=0;
-  trips.forEach(t=>{const c=calcTrip(t);inc+=c.income;fuel+=c.fuel;toll+=c.toll;load+=c.load+c.unload;net+=c.net;km+=+(t.km)||0;});
+  let inc=0,fuel=0,toll=0,load=0,tyre=0,bata=0,other=0,net=0,km=0;
+  trips.forEach(t=>{
+    const c=calcTrip(t);
+    inc+=c.income;fuel+=c.fuel;toll+=c.toll;
+    load+=c.load+c.unload;tyre+=c.tyre;bata+=c.bata;other+=c.other;
+    net+=c.net;km+=+(t.km)||0;
+  });
   const addl=exps.reduce((s,e)=>s+(+(e.amt)||0),0);
-  return{trips:trips.length,inc,fuel,toll,load,addl,exp:fuel+toll+load+addl,net:net-addl,km};
+  const exp=fuel+toll+load+tyre+bata+other+addl;
+  return{trips:trips.length,inc,fuel,toll,load,tyre,bata,other,addl,exp,net:inc-exp,km};
 }
 
 function allStats(tid){
@@ -1192,7 +1211,10 @@ function qSave(){
   const tripStatus=edate?'Completed':'In Transit';
   const tripDir=lv('mt-dir')||'Up';
   const emptyReturn=nv('q-empty-return')||0;
-  const trip={id:tid,tid:qTid,date,endDate:edate||'',tripStatus,tripDir,emptyReturn,from,to,goods:sv('q-goods'),broker,driver:lv('q-driver'),ttype:lv('q-ttype'),rtype:lv('q-rtype'),qty,rate,income:inc,recv,pending:Math.max(0,inc-recv),payStatus:recv<=0?'Pending':(inc-recv>0?'Partial':'Paid'),toll:t1+t2,load,unload,other,fuelCost:fuelTotal,km,startKm:ks,finalKm:ke,emptyKm:ekm,emptyCost,tyreCost,days:nv('q-days')||1,notes:sv('q-notes')};
+  // Auto-set tyre cost from Tyre Tracker
+  const autoTyreCPKM=tyrePKMfor(qTid);
+  const autoTyreCost=Math.round(autoTyreCPKM*km);
+  const trip={id:tid,tid:qTid,date,endDate:edate||'',tripStatus,tripDir,emptyReturn,tyreCost:autoTyreCost,from,to,goods:sv('q-goods'),broker,driver:lv('q-driver'),ttype:lv('q-ttype'),rtype:lv('q-rtype'),qty,rate,income:inc,recv,pending:Math.max(0,inc-recv),payStatus:recv<=0?'Pending':(inc-recv>0?'Partial':'Paid'),toll:t1+t2,load,unload,other,fuelCost:fuelTotal,km,startKm:ks,finalKm:ke,emptyKm:ekm,emptyCost,tyreCost,days:nv('q-days')||1,notes:sv('q-notes')};
   DB.trips.push(trip);
   log('Trip Added',`${truckName(qTid)}: ${from}→${to} ${INR(inc)}`);
   save();qFC=1;
@@ -2441,7 +2463,7 @@ ${hasData?`
   <div class="fw6 mb12" style="font-size:13px">Cost Per KM Breakdown</div>
   ${[
     ['⛽','Diesel / Fuel',fuelPKM,`${totFuelL.toFixed(0)}L total · ${avgMilT||'—'} km/L · ₹${lastPpl||'—'}/L last fill`,'linear-gradient(135deg,#f59e0b,#d97706)'],
-    ['🛞','Tyres',tyrePKM,`${tyres2.length} tyre positions · ₹${tyreCostTotal.toLocaleString('en-IN')} total investment`,'linear-gradient(135deg,#3b82f6,#2563eb)'],
+    ['🛞','Tyre Wear (per KM)',tyrePKM,`${tyres2.length} positions · ₹${tyreCostTotal.toLocaleString('en-IN')} total · ₹${tyrePKM.toFixed(3)}/km · per 420km trip = ₹${Math.round(tyrePKM*420)}`,'linear-gradient(135deg,#3b82f6,#2563eb)'],
     ['🔧','Maintenance',maintPKM,`₹${maintCost.toLocaleString('en-IN')} total service cost recorded`,'linear-gradient(135deg,#8b5cf6,#7c3aed)'],
     ['👤','Driver Salary',driverPKM,`₹${driverSalary.toLocaleString('en-IN')}/month · ${Math.round(avgMonKm).toLocaleString('en-IN')} km/month avg`,'linear-gradient(135deg,#10b981,#0d9488)'],
     ['🛣️','Toll',tollPKM,`₹${totToll.toLocaleString('en-IN')} total toll paid`,'linear-gradient(135deg,#ef4444,#dc2626)'],
@@ -3605,6 +3627,8 @@ function pgMonthly(){
     <div class="cost-row"><div><div class="fw6">Fuel</div></div><div class="fw7">${INR(s.fuel)}</div></div>
     <div class="cost-row"><div><div class="fw6">Toll</div></div><div class="fw7">${INR(s.toll)}</div></div>
     <div class="cost-row"><div><div class="fw6">Loading/Unloading</div></div><div class="fw7">${INR(s.load)}</div></div>
+    ${s.tyre>0?`<div class="cost-row"><div><div class="fw6">Tyre Wear</div><div class="fs11 col-3">Auto from tyre tracker</div></div><div class="fw7">${INR(s.tyre)}</div></div>`:''}
+    ${s.bata>0?`<div class="cost-row"><div><div class="fw6">Driver Bata</div></div><div class="fw7">${INR(s.bata)}</div></div>`:''}
     ${maintCost>0?`<div class="cost-row"><div><div class="fw6">Maintenance</div></div><div class="fw7">${INR(maintCost)}</div></div>`:''}
     ${Object.entries(expByCat).map(([cat,amt])=>`<div class="cost-row"><div><div class="fw6">${H(cat)}</div></div><div class="fw7">${INR(amt)}</div></div>`).join('')}
     <div class="cost-row" style="background:#fee2e2"><div><div class="fw7">TOTAL</div></div><div class="fw7 col-r">${INR(s.exp)}</div></div>
@@ -3683,12 +3707,12 @@ function exportExcel(){
   rows.push(['Cost/KM',totKm>0?+(s.exp/totKm).toFixed(2):0,'','Profit/KM',totKm>0?+(s.net/totKm).toFixed(2):0,'','Total Expenses',s.exp]);
   rows.push([]);
   rows.push(['=== TRIP DETAILS ===']);
-  rows.push(['Trip#','Date','Truck','From','To','Broker','Goods','Income(₹)','Fuel(₹)','Toll(₹)','Load/Unload(₹)','Other(₹)','Total Cost(₹)','Net Profit(₹)','KM','Cost/KM(₹)','Profit/KM(₹)','Empty KM','Pay Status','Pending(₹)','Rating']);
+  rows.push(['Trip#','Date','Truck','From','To','Broker','Goods','Income(₹)','Fuel(₹)','Toll(₹)','Load/Unload(₹)','Tyre(₹)','Bata(₹)','Other(₹)','Total Cost(₹)','Net Profit(₹)','KM','Cost/KM(₹)','Profit/KM(₹)','Empty KM','Pay Status','Pending(₹)','Rating']);
   trips.forEach(t=>{
     const c=calcTrip(t);const km2=+(t.km)||0;const ek=+(t.emptyKm)||0;
     const ppk=km2>0?+(c.net/km2).toFixed(2):0;const cpk=km2>0?+(c.exp/km2).toFixed(2):0;
     const rat=ppk>20?'Excellent':ppk>10?'Good':ppk>0?'OK':km2===0?'No KM data':'LOSS';
-    rows.push([t.id,t.date,truckName(t.tid),t.from||'',t.to||'',t.broker||'',t.goods||'',c.income,c.fuel,c.toll,c.loading+c.unloading,c.other,c.exp,c.net,km2,cpk,ppk,ek,t.payStatus||'Pending',t.pending||0,rat]);
+    rows.push([t.id,t.date,truckName(t.tid),t.from||'',t.to||'',t.broker||'',t.goods||'',c.income,c.fuel,c.toll,c.load+c.unload,c.tyre,c.bata,c.other,c.exp,c.net,km2,cpk,ppk,ek,t.payStatus||'Pending',t.pending||0,rat]);
   });
   // Totals row
   rows.push(['','TOTALS','','','','','',s.inc,s.fuel,s.toll,s.load,s.addl,s.exp,s.net,Math.round(totKm),'','',Math.round(totE),'','','']);
