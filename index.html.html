@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Maldar Fleet Manager</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -215,6 +217,12 @@ textarea.fc{resize:vertical;min-height:60px}
 @media print{#sidebar,#topbar,.btn,button{display:none!important}body,#app,#main,#content{background:#fff;height:auto;overflow:visible}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 
+/* ── GOOGLE SHEETS SYNC ── */
+.gs-bar{display:flex;align-items:center;gap:8px;padding:6px 14px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;font-size:12px;font-weight:600;color:#15803d}
+.gs-bar.error{background:#fef2f2;border-color:#fecaca;color:#b91c1c}
+.gs-bar.syncing{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
+.gs-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
+.gs-btn{padding:4px 10px;border-radius:6px;border:1px solid currentColor;background:transparent;color:inherit;font-size:11px;font-weight:700;cursor:pointer}
 /* ── LOGIN SCREEN ── */
 /* PIN LOCK */
 .pin-dots{display:flex;gap:14px;justify-content:center;margin:20px 0 10px}
@@ -310,6 +318,11 @@ textarea.fc{resize:vertical;min-height:60px}
   </div>
 </div>
 <button id="lock-btn" onclick="doLogout()" title="Lock / Sign Out">🔒 Lock</button>
+<div id="gs-bar" class="gs-bar" style="display:none">
+  <div class="gs-dot"></div>
+  <span id="gs-status">Not connected</span>
+  <button class="gs-btn" onclick="gsConnect()" id="gs-connect-btn">Connect Google Sheets</button>
+</div>
 <!-- UNDO TOAST -->
 <div class="undo-toast" id="undo-toast">
   <span id="undo-msg">Item deleted</span>
@@ -554,6 +567,8 @@ function save(){
   localStorage.setItem(KEY,JSON.stringify(DB));
   // Push to Chrome Sync if available
   if(_syncEnabled)pushToSync();
+  // Push to Google Sheets if connected
+  gsAfterSave();
 }
 
 function pushToSync(){
@@ -3243,7 +3258,12 @@ function pgSettings(){
         <div class="sdiv">☁️ Cross-Device Sync</div>
         <div class="mb8"><span class="badge ${hasChromeSync()?'b-gn':'b-rd'}">${hasChromeSync()?'✅ Chrome Sync Active':'❌ Not Available — use manual backup'}</span></div>
         <div class="fs11 col-3 mb8">Auto-syncs via Chrome when signed into same Google account on all devices. Tap Sync Now if data is missing on this device.</div>
-        <button class="btn btn-primary" onclick="manualSync()">🔄 Sync Now — Push / Pull Latest Data</button>
+        <button class="btn btn-primary" onclick="manualSync()">🔄 Chrome Sync — Push / Pull Data</button>
+        <div class="sdiv">📊 Google Sheets Sync</div>
+        <div class="mb8"><span class="badge ${gsToken?'b-gn':'b-rd'}">${gsToken?'✅ Google Sheets Connected':'❌ Not Connected'}</span></div>
+        <div class="fs11 col-3 mb8">Syncs all trips, fuel, expenses to a Google Sheet in your Drive. Open the sheet to view data or share with your partner/accountant.</div>
+        <button class="btn btn-primary" onclick="gsSyncNow()">${gsToken?'🔄 Sync to Google Sheets Now':'🔗 Connect Google Sheets'}</button>
+        ${gsToken&&gsSheetId?`<div class="fs11 col-g mt4">✅ Sheet ID: <a href="https://docs.google.com/spreadsheets/d/${gsSheetId}" target="_blank" style="color:var(--greentxt)">Open in Google Sheets ↗</a></div>`:''}
         <div class="sdiv">📦 Manual Backup</div>
         <button class="btn" onclick="exportData()">📤 Export Backup (JSON)</button>
         <button class="btn" onclick="importData()">📥 Import Backup</button>
@@ -4182,6 +4202,236 @@ function printBankReport(){
 }
 
 // ═══════════════════════════════════════════════════
+// GOOGLE SHEETS SYNC
+// ═══════════════════════════════════════════════════
+const GS_CLIENT_ID = '782404641041-b14mp7ikg6bngs9na17jumo38coti403.apps.googleusercontent.com';
+const GS_SHEET_NAME = 'Maldar Fleet Data';
+const GS_SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+const GS_KEY = 'GS_TOKEN_MALDAR';
+
+let gsToken = null;
+let gsSheetId = null;
+let gsSyncing = false;
+let gsPendingSave = false;
+
+function gsInit(){
+  const saved = localStorage.getItem(GS_KEY);
+  if(saved){
+    try{
+      const obj = JSON.parse(saved);
+      gsToken = obj.token;
+      gsSheetId = obj.sheetId;
+      gsShowBar('✅ Google Sheets Connected','connected');
+      gsHideConnectBtn();
+      gsPull();
+    }catch(e){gsToken=null;gsSheetId=null;}
+  } else {
+    gsShowBar('Connect Google Sheets to sync across devices','idle');
+  }
+}
+
+function gsShowBar(msg, state){
+  const bar = document.getElementById('gs-bar');
+  const st = document.getElementById('gs-status');
+  if(!bar||!st) return;
+  bar.style.display = 'flex';
+  bar.className = 'gs-bar' + (state==='error'?' error':state==='syncing'?' syncing':'');
+  st.textContent = msg;
+}
+
+function gsHideConnectBtn(){
+  const btn = document.getElementById('gs-connect-btn');
+  if(btn) btn.style.display = 'none';
+}
+
+function gsConnect(){
+  if(typeof google === 'undefined'){
+    alert('Google Sign-In not loaded. Check internet and refresh page.');
+    return;
+  }
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: GS_CLIENT_ID,
+    scope: GS_SCOPES,
+    callback: (resp)=>{
+      if(resp.error){ gsShowBar('❌ Connection failed: '+resp.error,'error'); return; }
+      gsToken = resp.access_token;
+      gsShowBar('⏳ Setting up Google Sheet...','syncing');
+      gsGetOrCreateSheet();
+    },
+  });
+  client.requestAccessToken();
+}
+
+async function gsGetOrCreateSheet(){
+  try{
+    const searchResp = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='${GS_SHEET_NAME}'+and+mimeType='application/vnd.google-apps.spreadsheet'+and+trashed=false&fields=files(id,name)`,
+      {headers:{'Authorization':'Bearer '+gsToken}}
+    );
+    const searchData = await searchResp.json();
+    if(searchData.files && searchData.files.length > 0){
+      gsSheetId = searchData.files[0].id;
+      gsSaveCredentials();
+      gsShowBar('⏳ Found existing sheet, loading data...','syncing');
+      await gsPull();
+    } else {
+      gsShowBar('⏳ Creating Maldar Fleet Data sheet...','syncing');
+      await gsCreateSheet();
+    }
+  }catch(e){ gsShowBar('❌ Error: '+e.message,'error'); }
+}
+
+async function gsCreateSheet(){
+  try{
+    const resp = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+      method:'POST',
+      headers:{'Authorization':'Bearer '+gsToken,'Content-Type':'application/json'},
+      body: JSON.stringify({
+        properties:{title:GS_SHEET_NAME},
+        sheets:[
+          {properties:{title:'Trips'}},
+          {properties:{title:'Fuel'}},
+          {properties:{title:'Expenses'}},
+          {properties:{title:'Drivers'}},
+          {properties:{title:'Brokers'}},
+          {properties:{title:'Trucks'}},
+          {properties:{title:'Tyres'}},
+          {properties:{title:'Maintenance'}},
+          {properties:{title:'Documents'}},
+          {properties:{title:'Summary'}},
+        ]
+      })
+    });
+    const data = await resp.json();
+    gsSheetId = data.spreadsheetId;
+    gsSaveCredentials();
+    await gsPushAll();
+    gsShowBar('✅ Connected — Maldar Fleet Data created in your Drive','connected');
+    gsHideConnectBtn();
+  }catch(e){ gsShowBar('❌ Create failed: '+e.message,'error'); }
+}
+
+function gsSaveCredentials(){
+  localStorage.setItem(GS_KEY, JSON.stringify({token:gsToken,sheetId:gsSheetId}));
+}
+
+async function gsPushAll(){
+  if(!gsToken||!gsSheetId) return;
+  gsSyncing=true;
+  gsShowBar('⏳ Saving to Google Sheets...','syncing');
+  try{
+    const updates=[];
+    // Trips sheet
+    const tripRows=[['Trip#','Date','Truck','From','To','Broker','Driver','Goods','Income','Fuel','Toll','Load','Unload','Bata','Other','Tyre','Net Profit','KM','Pay Status','Pending','Trip Status','Direction','Notes']];
+    (DB.trips||[]).forEach(t=>{
+      const c=calcTrip(t);
+      tripRows.push([t.id,t.date,truckName(t.tid),t.from||'',t.to||'',t.broker||'',t.driver||'',t.goods||'',c.income,c.fuel,c.toll,c.load,c.unload,c.bata,c.other,c.tyre,c.net,t.km||0,t.payStatus||'Pending',t.pending||0,t.tripStatus||'In Transit',t.tripDir||'Up',t.notes||'']);
+    });
+    updates.push({range:'Trips!A1',values:tripRows});
+    // Fuel sheet
+    const fuelRows=[['#','Date','Truck','Litres','Price/L','Total Cost','Odometer','Trip#']];
+    (DB.fuel||[]).forEach(f=>fuelRows.push([f.id,f.date,truckName(f.tid),f.ltrs,f.ppl,f.totalCost,f.odo||'',f.tripId||'']));
+    updates.push({range:'Fuel!A1',values:fuelRows});
+    // Expenses sheet
+    const expRows=[['#','Date','Truck','Category','Amount','Notes']];
+    (DB.expenses||[]).forEach(e=>expRows.push([e.id,e.date,truckName(e.tid),e.cat,e.amt,e.notes||'']));
+    updates.push({range:'Expenses!A1',values:expRows});
+    // Drivers sheet
+    const drvRows=[['#','Name','Phone','License','Truck','Salary','Advance']];
+    (DB.drivers||[]).forEach(d=>drvRows.push([d.id,d.name,d.phone||'',d.license||'',truckName(d.truckId),d.salary||0,d.adv||0]));
+    updates.push({range:'Drivers!A1',values:drvRows});
+    // Brokers sheet
+    const brkRows=[['#','Name','Phone','City','Total Trips','Pending']];
+    (DB.brokers||[]).forEach(b=>{
+      const bTrips=DB.trips.filter(t=>t.broker===b.name);
+      const bPend=bTrips.reduce((s,t)=>s+(+(t.pending)||0),0);
+      brkRows.push([b.id,b.name,b.phone||'',b.city||'',bTrips.length,bPend]);
+    });
+    updates.push({range:'Brokers!A1',values:brkRows});
+    // Summary sheet
+    const nd=new Date();const yr=nd.getFullYear();const mon=nd.getMonth();
+    const ms=mStats(0,yr,mon);const at=allStats(0);
+    const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    updates.push({range:'Summary!A1',values:[
+      ['Maldar Roadlines — Fleet Summary',''],
+      ['Last Updated',new Date().toLocaleString('en-IN')],
+      ['',''],
+      ['THIS MONTH — '+MN[mon]+' '+yr,''],
+      ['Trips',ms.trips],['Income',ms.inc],['Net Profit',ms.net],
+      ['Fuel Cost',ms.fuel],['KM Driven',Math.round(ms.km)],
+      ['',''],
+      ['ALL TIME',''],
+      ['Total Trips',at.trips],['Total Income',at.inc],
+      ['Total Profit',at.net],['Pending Payments',at.pend],
+    ]});
+    // Batch write
+    const bResp = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}/values:batchUpdate`,
+      {
+        method:'POST',
+        headers:{'Authorization':'Bearer '+gsToken,'Content-Type':'application/json'},
+        body:JSON.stringify({valueInputOption:'USER_ENTERED',data:updates})
+      }
+    );
+    if(!bResp.ok) throw new Error('HTTP '+bResp.status);
+    gsShowBar('✅ Synced — '+new Date().toLocaleTimeString('en-IN'),'connected');
+    gsHideConnectBtn();
+  }catch(e){
+    if(e.message.includes('401')){
+      gsToken=null;localStorage.removeItem(GS_KEY);
+      gsShowBar('🔄 Session expired — tap to reconnect','idle');
+      const btn=document.getElementById('gs-connect-btn');if(btn)btn.style.display='';
+    } else {
+      gsShowBar('⚠️ Sync error: '+e.message,'error');
+    }
+  }
+  gsSyncing=false;
+  if(gsPendingSave){gsPendingSave=false;gsPushAll();}
+}
+
+async function gsPull(){
+  if(!gsToken||!gsSheetId) return;
+  gsShowBar('⏳ Checking other devices for newer data...','syncing');
+  try{
+    const resp = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}/values/Summary!A1:B15`,
+      {headers:{'Authorization':'Bearer '+gsToken}}
+    );
+    const data = await resp.json();
+    const rows = data.values||[];
+    const updRow = rows.find(r=>r[0]==='Last Updated');
+    if(updRow&&updRow[1]){
+      const sheetTime = new Date(updRow[1]);
+      const localTime = DB._ts ? new Date(DB._ts) : new Date(0);
+      if(sheetTime > localTime){
+        gsShowBar('📥 Newer data found on another device! Go to Settings → Sync Now','error');
+      } else {
+        gsShowBar('✅ Google Sheets Connected — data up to date','connected');
+        gsHideConnectBtn();
+      }
+    } else {
+      await gsPushAll();
+    }
+  }catch(e){ gsShowBar('⚠️ Could not check: '+e.message,'error'); }
+}
+
+function gsAfterSave(){
+  if(!gsToken||!gsSheetId) return;
+  if(gsSyncing){gsPendingSave=true;return;}
+  clearTimeout(window._gsSaveTimer);
+  window._gsSaveTimer = setTimeout(()=>gsPushAll(), 2000);
+}
+
+function gsSyncNow(){
+  if(!gsToken||!gsSheetId){
+    gsConnect();
+    return;
+  }
+  gsPushAll();
+}
+
+
+// ═══════════════════════════════════════════════════
 // PIN + LOGIN SYSTEM
 // ═══════════════════════════════════════════════════
 const DEFAULT_PIN  = '1234';
@@ -4425,6 +4675,7 @@ document.getElementById('MOV').addEventListener('click',e=>{if(e.target===docume
 document.addEventListener('DOMContentLoaded', function(){
   initDB();
   checkAuth();
+  setTimeout(gsInit, 1000);
 });
 </script>
 
