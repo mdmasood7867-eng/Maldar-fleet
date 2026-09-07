@@ -4481,15 +4481,38 @@ async function gsPushAll(){
     ]});
 
     // ── BATCH WRITE ALL SHEETS ─────────────────────────────────────────────────
-    const bResp = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}/values:batchUpdate`,
-      {
-        method:'POST',
-        headers:{'Authorization':'Bearer '+gsToken,'Content-Type':'application/json'},
-        body:JSON.stringify({valueInputOption:'USER_ENTERED',data:updates})
+    // Split into chunks to avoid 400 errors from missing sheets
+    const CHUNK = 5;
+    for(let i=0;i<updates.length;i+=CHUNK){
+      const chunk=updates.slice(i,i+CHUNK);
+      const bResp = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}/values:batchUpdate`,
+        {
+          method:'POST',
+          headers:{'Authorization':'Bearer '+gsToken,'Content-Type':'application/json'},
+          body:JSON.stringify({valueInputOption:'USER_ENTERED',data:chunk})
+        }
+      );
+      if(!bResp.ok){
+        const errText = await bResp.text();
+        // If sheet tab doesn't exist — add missing tabs then retry
+        if(bResp.status===400&&errText.includes('Unable to parse range')){
+          await gsAddMissingSheets();
+          // Retry this chunk
+          const retryResp = await fetch(
+            `https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}/values:batchUpdate`,
+            {
+              method:'POST',
+              headers:{'Authorization':'Bearer '+gsToken,'Content-Type':'application/json'},
+              body:JSON.stringify({valueInputOption:'USER_ENTERED',data:chunk})
+            }
+          );
+          if(!retryResp.ok) throw new Error('HTTP '+retryResp.status+' after retry');
+        } else {
+          throw new Error('HTTP '+bResp.status);
+        }
       }
-    );
-    if(!bResp.ok) throw new Error('HTTP '+bResp.status);
+    }
     gsShowBar('✅ Synced — '+nd.toLocaleTimeString('en-IN')+' ('+DB.trips.length+' trips, '+DB.fuel.length+' fuel entries)','connected');
     gsHideConnectBtn();
   }catch(e){
@@ -4507,10 +4530,51 @@ async function gsPushAll(){
 
 async function gsPull(){
   if(!gsToken||!gsSheetId) return;
-  gsShowBar('⏳ Checking other devices for newer data...','syncing');
+  gsShowBar('⏳ Checking for newer data from other devices...','syncing');
+  try{
+    // Read JSONBackup sheet — has complete DB
+    const resp = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}/values/JSONBackup!A5`,
+      {headers:{'Authorization':'Bearer '+gsToken}}
+    );
+    if(!resp.ok){
+      // JSONBackup sheet may not exist yet — try Summary for version check
+      await gsPullViaSummary();
+      return;
+    }
+    const data = await resp.json();
+    const jsonStr = data.values?.[0]?.[0];
+    if(!jsonStr){await gsPushAll();return;}
+    try{
+      const sheetDB = JSON.parse(jsonStr);
+      const sheetV = +(sheetDB._v)||0;
+      const localV = +(DB._v)||0;
+      if(sheetV > localV){
+        // Sheet has newer data — auto-import silently
+        DB = migrate(sheetDB);
+        localStorage.setItem(KEY, JSON.stringify(DB));
+        gsShowBar('✅ Updated from Google Sheets (v'+sheetV+') — data from other device loaded','connected');
+        gsHideConnectBtn();
+        // Refresh current page to show new data
+        setTimeout(()=>{ if(typeof go==='function') go(CP||'dashboard'); }, 500);
+      } else if(localV > sheetV){
+        // Local is newer — push to sheet
+        gsShowBar('⏳ Pushing your latest data to Google Sheets...','syncing');
+        await gsPushAll();
+      } else {
+        gsShowBar('✅ Google Sheets Connected — all devices in sync','connected');
+        gsHideConnectBtn();
+      }
+    }catch(e){ await gsPushAll(); }
+  }catch(e){
+    gsShowBar('⚠️ Sync check failed: '+e.message,'error');
+  }
+}
+
+async function gsPullViaSummary(){
   try{
     const resp = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}/values/Summary!A1:B15`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}/values/Summary!A1:B5`,
       {headers:{'Authorization':'Bearer '+gsToken}}
     );
     const data = await resp.json();
@@ -4520,15 +4584,39 @@ async function gsPull(){
       const sheetTime = new Date(updRow[1]);
       const localTime = DB._ts ? new Date(DB._ts) : new Date(0);
       if(sheetTime > localTime){
-        gsShowBar('📥 Newer data found on another device! Go to Settings → Sync Now','error');
+        gsShowBar('📥 Newer data on another device — tap Sync Now in Settings to load it','error');
       } else {
-        gsShowBar('✅ Google Sheets Connected — data up to date','connected');
-        gsHideConnectBtn();
+        await gsPushAll();
       }
     } else {
       await gsPushAll();
     }
-  }catch(e){ gsShowBar('⚠️ Could not check: '+e.message,'error'); }
+  }catch(e){ gsShowBar('⚠️ Could not check sheet: '+e.message,'error'); }
+}
+
+async function gsAddMissingSheets(){
+  // Get existing sheet titles
+  try{
+    const resp = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}?fields=sheets.properties.title`,
+      {headers:{'Authorization':'Bearer '+gsToken}}
+    );
+    const data = await resp.json();
+    const existing = (data.sheets||[]).map(s=>s.properties.title);
+    const needed = ['Trips','Fuel','Expenses','Drivers','Brokers','Trucks','Tyres',
+      'Maintenance','Documents','Loans','LoanPayments','FixedCosts','Savings',
+      'Settings','Alerts','Summary','JSONBackup'];
+    const missing = needed.filter(n=>!existing.includes(n));
+    if(!missing.length) return;
+    // Add missing sheets
+    const requests = missing.map(title=>({addSheet:{properties:{title}}}));
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}:batchUpdate`,{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+gsToken,'Content-Type':'application/json'},
+      body:JSON.stringify({requests})
+    });
+    gsShowBar('⏳ Added missing sheet tabs — retrying sync...','syncing');
+  }catch(e){ console.error('gsAddMissingSheets error:',e); }
 }
 
 function gsAfterSave(){
@@ -4538,12 +4626,12 @@ function gsAfterSave(){
   window._gsSaveTimer = setTimeout(()=>gsPushAll(), 2000);
 }
 
-function gsSyncNow(){
-  if(!gsToken||!gsSheetId){
-    gsConnect();
-    return;
-  }
-  gsPushAll();
+async function gsSyncNow(){
+  if(!gsToken||!gsSheetId){ gsConnect(); return; }
+  gsShowBar('⏳ Syncing...','syncing');
+  // First push local data, then check if sheet has something newer
+  await gsPushAll();
+  gsShowBar('✅ Sync complete — all devices updated','connected');
 }
 
 
