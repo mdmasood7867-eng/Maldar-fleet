@@ -4289,16 +4289,14 @@ async function gsCreateSheet(){
       body: JSON.stringify({
         properties:{title:GS_SHEET_NAME},
         sheets:[
-          {properties:{title:'Trips'}},
-          {properties:{title:'Fuel'}},
-          {properties:{title:'Expenses'}},
-          {properties:{title:'Drivers'}},
-          {properties:{title:'Brokers'}},
-          {properties:{title:'Trucks'}},
-          {properties:{title:'Tyres'}},
-          {properties:{title:'Maintenance'}},
-          {properties:{title:'Documents'}},
-          {properties:{title:'Summary'}},
+          {properties:{title:'Trips'}},{properties:{title:'Fuel'}},
+          {properties:{title:'Expenses'}},{properties:{title:'Drivers'}},
+          {properties:{title:'Brokers'}},{properties:{title:'Trucks'}},
+          {properties:{title:'Tyres'}},{properties:{title:'Maintenance'}},
+          {properties:{title:'Documents'}},{properties:{title:'Loans'}},
+          {properties:{title:'LoanPayments'}},{properties:{title:'FixedCosts'}},
+          {properties:{title:'Savings'}},{properties:{title:'Settings'}},
+          {properties:{title:'Summary'}},{properties:{title:'JSONBackup'}},
         ]
       })
     });
@@ -4321,50 +4319,151 @@ async function gsPushAll(){
   gsShowBar('⏳ Saving to Google Sheets...','syncing');
   try{
     const updates=[];
-    // Trips sheet
-    const tripRows=[['Trip#','Date','Truck','From','To','Broker','Driver','Goods','Income','Fuel','Toll','Load','Unload','Bata','Other','Tyre','Net Profit','KM','Pay Status','Pending','Trip Status','Direction','Notes']];
+    const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    // ── TRIPS ──────────────────────────────────────────────────────────────────
+    const tripRows=[['Trip#','Date','End Date','Truck','From','To','Broker','Driver','Goods','Rate Type','Rate','Qty','Income','Fuel','Toll','Load','Unload','Bata','Other','Tyre','Net Profit','KM','Empty KM','Cost/KM','Profit/KM','Pay Status','Received','Pending','Trip Status','Direction','Start Odo','End Odo','Days','Notes']];
     (DB.trips||[]).forEach(t=>{
-      const c=calcTrip(t);
-      tripRows.push([t.id,t.date,truckName(t.tid),t.from||'',t.to||'',t.broker||'',t.driver||'',t.goods||'',c.income,c.fuel,c.toll,c.load,c.unload,c.bata,c.other,c.tyre,c.net,t.km||0,t.payStatus||'Pending',t.pending||0,t.tripStatus||'In Transit',t.tripDir||'Up',t.notes||'']);
+      const c=calcTrip(t);const km=+(t.km)||0;
+      tripRows.push([t.id,t.date,t.endDate||'',truckName(t.tid),t.from||'',t.to||'',t.broker||'',t.driver||'',t.goods||'',t.rtype||'',t.rate||0,t.qty||1,c.income,c.fuel,c.toll,c.load,c.unload,c.bata,c.other,c.tyre,c.net,km,t.emptyKm||0,km>0?+(c.exp/km).toFixed(2):0,km>0?+(c.net/km).toFixed(2):0,t.payStatus||'Pending',t.recv||0,t.pending||0,t.tripStatus||'In Transit',t.tripDir||'Up',t.startKm||0,t.finalKm||0,t.days||1,t.notes||'']);
     });
     updates.push({range:'Trips!A1',values:tripRows});
-    // Fuel sheet
-    const fuelRows=[['#','Date','Truck','Litres','Price/L','Total Cost','Odometer','Trip#']];
-    (DB.fuel||[]).forEach(f=>fuelRows.push([f.id,f.date,truckName(f.tid),f.ltrs,f.ppl,f.totalCost,f.odo||'',f.tripId||'']));
+
+    // ── FUEL ───────────────────────────────────────────────────────────────────
+    const fuelRows=[['#','Date','Truck','Litres','Price/L','Total Cost','Odometer','KM Since Last','Mileage km/L','Trip#']];
+    (DB.fuel||[]).forEach(f=>fuelRows.push([f.id,f.date,truckName(f.tid),f.ltrs||0,f.ppl||0,f.totalCost||0,f.odo||'',f.kmSince||'',f.mil||'',f.tripId||'']));
     updates.push({range:'Fuel!A1',values:fuelRows});
-    // Expenses sheet
+
+    // ── EXPENSES ───────────────────────────────────────────────────────────────
     const expRows=[['#','Date','Truck','Category','Amount','Notes']];
-    (DB.expenses||[]).forEach(e=>expRows.push([e.id,e.date,truckName(e.tid),e.cat,e.amt,e.notes||'']));
+    (DB.expenses||[]).forEach(e=>expRows.push([e.id,e.date,truckName(e.tid),e.cat||'',e.amt||0,e.notes||'']));
     updates.push({range:'Expenses!A1',values:expRows});
-    // Drivers sheet
-    const drvRows=[['#','Name','Phone','License','Truck','Salary','Advance']];
-    (DB.drivers||[]).forEach(d=>drvRows.push([d.id,d.name,d.phone||'',d.license||'',truckName(d.truckId),d.salary||0,d.adv||0]));
+
+    // ── DRIVERS ────────────────────────────────────────────────────────────────
+    const drvRows=[['#','Name','Phone','License','License Expiry','Truck','Salary/Month','Advance Given','Advance Repaid','Outstanding']];
+    (DB.drivers||[]).forEach(d=>drvRows.push([d.id,d.name,d.phone||'',d.license||'',d.licExpiry||'',truckName(d.truckId),d.salary||0,d.adv||0,d.advR||0,Math.max(0,(+(d.adv)||0)-(+(d.advR)||0))]));
     updates.push({range:'Drivers!A1',values:drvRows});
-    // Brokers sheet
-    const brkRows=[['#','Name','Phone','City','Total Trips','Pending']];
+
+    // ── BROKERS ────────────────────────────────────────────────────────────────
+    const brkRows=[['#','Name','Phone','City','Total Trips','Total Freight','Total Paid','Total Pending']];
     (DB.brokers||[]).forEach(b=>{
-      const bTrips=DB.trips.filter(t=>t.broker===b.name);
-      const bPend=bTrips.reduce((s,t)=>s+(+(t.pending)||0),0);
-      brkRows.push([b.id,b.name,b.phone||'',b.city||'',bTrips.length,bPend]);
+      const bT=DB.trips.filter(t=>t.broker===b.name);
+      const bInc=bT.reduce((s,t)=>s+(+(t.income)||0),0);
+      const bRecv=bT.reduce((s,t)=>s+(+(t.recv)||0),0);
+      const bPend=bT.reduce((s,t)=>s+(+(t.pending)||0),0);
+      brkRows.push([b.id,b.name,b.phone||'',b.city||'',bT.length,bInc,bRecv,bPend]);
     });
     updates.push({range:'Brokers!A1',values:brkRows});
-    // Summary sheet
+
+    // ── TRUCKS ─────────────────────────────────────────────────────────────────
+    const trkRows=[['#','Reg No','Make','Model','Type','Year','Purchase Price','Status','City','Driver','Notes']];
+    (DB.trucks||[]).forEach(t=>trkRows.push([t.id,t.reg||'',t.make||'',t.model||'',t.type||'',t.year||'',t.price||0,t.status||'Active',t.city||'',t.driver||'',t.notes||'']));
+    updates.push({range:'Trucks!A1',values:trkRows});
+
+    // ── TYRES ──────────────────────────────────────────────────────────────────
+    const tyrRows=[['#','Truck','Position','Brand','Status','Cost','Fitted at KM','Expected Life KM','Removed at KM','KM Used','Life %','Cost/KM']];
+    (DB.tyres||[]).forEach(t=>{
+      const curO=odo(t.tid);
+      const used=+(t.rem)>0?+(t.rem)-+(t.fit):(curO>+(t.fit)&&+(t.fit)>0?curO-+(t.fit):0);
+      const pct=+(t.exp)>0?Math.round(used/+(t.exp)*100):0;
+      const cpr=+(t.cost)>0&&+(t.exp)>0?(+(t.cost)/+(t.exp)).toFixed(3):'';
+      tyrRows.push([t.id,truckName(t.tid),t.pos||'',t.brand||'',t.status||'Empty',t.cost||0,t.fit||0,t.exp||0,t.rem||0,Math.round(used),pct,cpr]);
+    });
+    updates.push({range:'Tyres!A1',values:tyrRows});
+
+    // ── MAINTENANCE ────────────────────────────────────────────────────────────
+    const mntRows=[['#','Truck','Item','Last Service KM','Last Service Date','Service Interval KM','Next Due KM','Status','Cost','Notes']];
+    (DB.maint||[]).forEach(m=>{
+      const curO=odo(m.tid);
+      const nextDue=(+(m.lastKm)||0)+(+(m.intv)||0);
+      const rem=nextDue-curO;
+      const status=rem<=0?'OVERDUE':rem<2000?'DUE SOON':'OK';
+      mntRows.push([m.id,truckName(m.tid),m.item||'',m.lastKm||0,m.lastDate||'',m.intv||0,nextDue,status,m.cost||0,m.notes||'']);
+    });
+    updates.push({range:'Maintenance!A1',values:mntRows});
+
+    // ── DOCUMENTS ─────────────────────────────────────────────────────────────
+    const docRows=[['#','Truck','Document','Expiry Date','Days Left','Status','Cost','Notes']];
+    (DB.docs||[]).forEach(d=>{
+      const days=d.expiry?Math.floor((new Date(d.expiry)-new Date())/864e5):null;
+      const status=days===null?'No expiry':days<0?'EXPIRED':days<30?'EXPIRING SOON':'OK';
+      docRows.push([d.id,truckName(d.tid),d.name||'',d.expiry||'',days===null?'':days,status,d.cost||0,d.notes||'']);
+    });
+    updates.push({range:'Documents!A1',values:docRows});
+
+    // ── LOANS ──────────────────────────────────────────────────────────────────
+    const loanRows=[['#','Truck','Purpose','Lender','Amount','EMI','Start Date','Status','Total Paid','Balance']];
+    (DB.loans||[]).forEach(l=>{
+      const paid=(DB.loanPay||[]).filter(p=>p.lid===l.id).reduce((s,p)=>s+(+(p.amt)||0),0);
+      loanRows.push([l.id,truckName(l.tid),l.purpose||'',l.lender||'',l.amount||0,l.emi||0,l.start||'',l.status||'Active',paid,Math.max(0,(+(l.amount)||0)-paid)]);
+    });
+    updates.push({range:'Loans!A1',values:loanRows});
+
+    // ── LOAN PAYMENTS ─────────────────────────────────────────────────────────
+    const lpRows=[['#','Loan#','Date','Amount','Notes']];
+    (DB.loanPay||[]).forEach(p=>lpRows.push([p.id,p.lid,p.date||'',p.amt||0,p.notes||'']));
+    updates.push({range:'LoanPayments!A1',values:lpRows});
+
+    // ── FIXED COSTS ────────────────────────────────────────────────────────────
+    const fixRows=[['#','Truck','Item','Annual Cost','Monthly Cost','Cost/KM']];
+    const allT2=DB.trips||[];
+    (DB.fixed||[]).forEach(f=>{
+      const tKm=allT2.filter(t=>t.tid===f.tid).reduce((s,t)=>s+(+(t.km)||0),0);
+      const cpkm=tKm>0?(+(f.annual)||0)/tKm:0;
+      fixRows.push([f.id,truckName(f.tid),f.item||'',f.annual||0,Math.round((+(f.annual)||0)/12),cpkm.toFixed(3)]);
+    });
+    updates.push({range:'FixedCosts!A1',values:fixRows});
+
+    // ── SAVINGS ────────────────────────────────────────────────────────────────
+    const savRows=[['#','Goal','Target Amount','Saved So Far','Progress %','Notes']];
+    (DB.savings||[]).forEach(s=>savRows.push([s.id,s.goal||'',s.target||0,s.saved||0,s.target>0?Math.round(s.saved/s.target*100):0,s.notes||'']));
+    updates.push({range:'Savings!A1',values:savRows});
+
+    // ── SETTINGS (Owner) ───────────────────────────────────────────────────────
+    const own=DB.owner||{};
+    updates.push({range:'Settings!A1',values:[
+      ['OWNER DETAILS',''],
+      ['Name',own.name||''],['Phone',own.phone||''],['Address',own.address||''],
+      ['GST',own.gst||''],['Bank',own.bank||''],['Account No',own.acc||''],
+      ['IFSC',own.ifsc||''],['UPI',own.upi||''],
+    ]});
+
+    // ── SUMMARY ────────────────────────────────────────────────────────────────
     const nd=new Date();const yr=nd.getFullYear();const mon=nd.getMonth();
     const ms=mStats(0,yr,mon);const at=allStats(0);
-    const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    updates.push({range:'Summary!A1',values:[
-      ['Maldar Roadlines — Fleet Summary',''],
-      ['Last Updated',new Date().toLocaleString('en-IN')],
-      ['',''],
+    const summaryRows=[
+      ['MALDAR ROADLINES — FLEET SUMMARY',''],
+      ['Last Updated',nd.toLocaleString('en-IN')],['App Version',DB._v||1],['',''],
       ['THIS MONTH — '+MN[mon]+' '+yr,''],
-      ['Trips',ms.trips],['Income',ms.inc],['Net Profit',ms.net],
-      ['Fuel Cost',ms.fuel],['KM Driven',Math.round(ms.km)],
-      ['',''],
+      ['Trips',ms.trips],['Gross Income',ms.inc],['Net Profit',ms.net],
+      ['Fuel Cost',ms.fuel],['Toll',ms.toll],['KM Driven',Math.round(ms.km)],['',''],
       ['ALL TIME',''],
-      ['Total Trips',at.trips],['Total Income',at.inc],
-      ['Total Profit',at.net],['Pending Payments',at.pend],
+      ['Total Trips',at.trips],['Total Income',at.inc],['Total Profit',at.net],
+      ['Pending Payments',at.pend],['Active Loans',at.loans],['',''],
+      ['FLEET',''],
+      ['Trucks',DB.trucks.length],['Drivers',DB.drivers.length],['Brokers',DB.brokers.length],
+    ];
+    // Add monthly P&L for last 12 months
+    summaryRows.push(['',''],['MONTHLY P&L — LAST 12 MONTHS','']);
+    summaryRows.push(['Month','Trips','Income','Net Profit','KM']);
+    for(let i=11;i>=0;i--){
+      const d=new Date();d.setMonth(d.getMonth()-i);
+      const s2=mStats(0,d.getFullYear(),d.getMonth());
+      if(s2.trips>0)summaryRows.push([MN[d.getMonth()]+' '+d.getFullYear(),s2.trips,s2.inc,s2.net,Math.round(s2.km)]);
+    }
+    updates.push({range:'Summary!A1',values:summaryRows});
+
+    // ── FULL JSON BACKUP (for complete restore) ────────────────────────────────
+    const jsonBackup=JSON.stringify(DB);
+    updates.push({range:'JSONBackup!A1',values:[
+      ['FULL APP BACKUP — DO NOT EDIT THIS SHEET'],
+      ['Last Updated',nd.toLocaleString('en-IN')],
+      ['Size (chars)',jsonBackup.length],
+      ['How to restore','Copy cell A5 content → open app → Settings → Import Backup → paste'],
+      [jsonBackup],
     ]});
-    // Batch write
+
+    // ── BATCH WRITE ALL SHEETS ─────────────────────────────────────────────────
     const bResp = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}/values:batchUpdate`,
       {
@@ -4374,7 +4473,7 @@ async function gsPushAll(){
       }
     );
     if(!bResp.ok) throw new Error('HTTP '+bResp.status);
-    gsShowBar('✅ Synced — '+new Date().toLocaleTimeString('en-IN'),'connected');
+    gsShowBar('✅ Synced — '+nd.toLocaleTimeString('en-IN')+' ('+DB.trips.length+' trips, '+DB.fuel.length+' fuel entries)','connected');
     gsHideConnectBtn();
   }catch(e){
     if(e.message.includes('401')){
