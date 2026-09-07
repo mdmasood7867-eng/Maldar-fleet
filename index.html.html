@@ -651,6 +651,8 @@ function migrate(d){
   });
   if(!d.trucks||!d.trucks.length)d.trucks=f.trucks;
   if(!Array.isArray(d.salarySettlements))d.salarySettlements=[];
+  if(!Array.isArray(d.alertNos))d.alertNos=['9949859843','9701538563'];
+  if(!d.alertDismissed)d.alertDismissed={};
   (d.trips||[]).forEach(t=>{
     if(t.payStatus===undefined)t.payStatus='Pending';
     if(t.recv===undefined)t.recv=0;
@@ -668,7 +670,8 @@ function fresh(){
     trips:[],fuel:[],expenses:[],loans:[],loanPay:[],
     tyres:mkTyres(),maint:mkMaint(),docs:mkDocs(),
     fixed:mkFixed(),savings:mkSavings(),
-    drivers:[],brokers:[],paddySeas:[],paddyEntr:[],activity:[]
+    drivers:[],brokers:[],paddySeas:[],paddyEntr:[],activity:[],
+    alertNos:['9949859843','9701538563'],alertDismissed:{}
   };
 }
 function mkTyres(){
@@ -916,15 +919,8 @@ function pgDash(){
     return{...ty,pct,truck:truckName(ty.tid)};
   });
 
-  const allUrgent=[
-    ...docAlerts.filter(d=>d.days<0).map(d=>({sev:'rd',icon:'📄',msg:d.name+' EXPIRED ('+d.truck+')',action:"go('docs')",actionLbl:'Renew'})),
-    ...docAlerts.filter(d=>d.days>=0&&d.days<30).map(d=>({sev:'am',icon:'📄',msg:d.name+' expiring in '+d.days+' days ('+d.truck+')',action:"go('docs')",actionLbl:'Renew'})),
-    ...maintAlerts.filter(m=>m.rem<=0).map(m=>({sev:'rd',icon:'🔧',msg:m.item+' OVERDUE ('+m.truck+') — '+KM(Math.abs(m.rem))+' past due',action:"go('maint')",actionLbl:'Service'})),
-    ...maintAlerts.filter(m=>m.rem>0&&m.rem<2000).map(m=>({sev:'am',icon:'🔧',msg:m.item+' due soon ('+m.truck+') — '+KM(m.rem)+' left',action:"go('maint')",actionLbl:'Plan'})),
-    ...tyreAlerts.filter(t=>t.pct>=85).map(t=>({sev:'rd',icon:'🛞',msg:'Tyre '+t.pos+' ('+t.truck+') — '+t.pct+'% life used, REPLACE NOW',action:"go('tyres')",actionLbl:'Replace'})),
-    ...tyreAlerts.filter(t=>t.pct>=70&&t.pct<85).map(t=>({sev:'am',icon:'🛞',msg:'Tyre '+t.pos+' ('+t.truck+') — '+t.pct+'% life, order soon',action:"go('tyres')",actionLbl:'Order'})),
-    ...overduePayments.slice(0,5).map(p=>({sev:'am',icon:'💰',msg:'₹'+Math.round(+(p.pending||0)).toLocaleString('en-IN')+' pending from '+(p.broker||'client')+' — '+p.daysOld+' days old',action:"go('recv')",actionLbl:'Collect'})),
-  ];
+  // Use unified alert system — respects dismiss + correct thresholds
+  const allUrgent=buildAllAlerts().filter(a=>!a.dismissed);
   const redAlerts=allUrgent.filter(a=>a.sev==='rd');
   const amAlerts=allUrgent.filter(a=>a.sev==='am');
 
@@ -939,6 +935,7 @@ function pgDash(){
       '<span style="font-size:12px;font-weight:600;color:'+txtcol+'">'+H(a.msg)+'</span></div>'+
       '<button class="btn btn-sm '+btncls+'" onclick="'+a.action+'">'+a.actionLbl+'</button></div>';
   }
+  // Use new unified alert system
   const alertPanelHTML=(()=>{
     if(!allUrgent.length)return '';
     const bc=redAlerts.length>0?'var(--red)':'var(--amber)';
@@ -3215,6 +3212,22 @@ function pgSettings(){
   </div>
   <div>
     <div class="card mb12">
+      <div class="sdiv">📱 WhatsApp Alert Numbers</div>
+      <div class="infobox mb10">These numbers receive WhatsApp alerts for document expiry, maintenance, tyre replacement and overdue payments. Add up to 5 numbers.</div>
+      ${(DB.alertNos||[]).map((no,i)=>`
+        <div class="fr2 mb6">
+          <div class="fg"><label class="fl">Number ${i+1}</label>
+            <input type="tel" class="fc" id="alrt-no-${i}" value="${H(no)}" placeholder="9949859843">
+          </div>
+          <div style="display:flex;align-items:flex-end;padding-bottom:2px">
+            <button class="btn btn-sm btn-danger" onclick="removeAlertNo(${i})">Remove</button>
+          </div>
+        </div>`).join('')}
+      <div class="fr2 mb10">
+        <button class="btn" onclick="addAlertNo()">+ Add Number</button>
+        <button class="btn btn-primary" onclick="saveAlertNos()">💾 Save Numbers</button>
+      </div>
+      <button class="btn btn-success mb10" style="width:100%" onclick="sendWhatsAppAlerts()">📱 Send Test Alert to All Numbers</button>
       <div class="sdiv">🔐 Login Credentials</div>
       <div class="al-bl alert mb12">Default PIN: <strong>1234</strong> · Username: <strong>maldar</strong> · Password: <strong>fleet2024</strong><br>Change any of these below. Leave blank to keep current.</div>
       <div class="sdiv" style="margin-top:10px">4-Digit PIN (recommended for phone)</div>
@@ -4296,7 +4309,7 @@ async function gsCreateSheet(){
           {properties:{title:'Documents'}},{properties:{title:'Loans'}},
           {properties:{title:'LoanPayments'}},{properties:{title:'FixedCosts'}},
           {properties:{title:'Savings'}},{properties:{title:'Settings'}},
-          {properties:{title:'Summary'}},{properties:{title:'JSONBackup'}},
+          {properties:{title:'Alerts'}},{properties:{title:'Summary'}},{properties:{title:'Alerts'}},{properties:{title:'JSONBackup'}},
         ]
       })
     });
@@ -4452,6 +4465,10 @@ async function gsPushAll(){
       if(s2.trips>0)summaryRows.push([MN[d.getMonth()]+' '+d.getFullYear(),s2.trips,s2.inc,s2.net,Math.round(s2.km)]);
     }
     updates.push({range:'Summary!A1',values:summaryRows});
+
+    // ── ALERTS TAB ────────────────────────────────────────────────────────────
+    const alertRows=gsAlertRows();
+    updates.push({range:'Alerts!A1',values:alertRows});
 
     // ── FULL JSON BACKUP (for complete restore) ────────────────────────────────
     const jsonBackup=JSON.stringify(DB);
@@ -4753,6 +4770,266 @@ function showUndoReasonModal(item){
 }
 
 // ═══════════════════════════════════════════════════
+// SMART ALERT SYSTEM
+// ═══════════════════════════════════════════════════
+
+// Alert thresholds (days before expiry)
+const ALERT_THRESHOLDS = {
+  'Insurance':  [120, 30, 7],   // 4 months, 1 month, 1 week
+  'RC':         [120, 30, 7],
+  'Permit':     [120, 30, 7],
+  'Road Tax':   [60,  30, 7],   // 2 months, 1 month, 1 week
+  'Fitness':    [60,  30, 7],
+  'Pollution':  [30,  7,  1],
+  'default':    [30,  7,  1],
+};
+
+function getDocThreshold(docName) {
+  const n = (docName||'').toLowerCase();
+  if(n.includes('insurance')) return ALERT_THRESHOLDS['Insurance'];
+  if(n.includes('rc')||n.includes('registration')) return ALERT_THRESHOLDS['RC'];
+  if(n.includes('permit')) return ALERT_THRESHOLDS['Permit'];
+  if(n.includes('tax')) return ALERT_THRESHOLDS['Road Tax'];
+  if(n.includes('fitness')) return ALERT_THRESHOLDS['Fitness'];
+  if(n.includes('pollution')||n.includes('puc')) return ALERT_THRESHOLDS['Pollution'];
+  return ALERT_THRESHOLDS['default'];
+}
+
+// ── Build all active alerts ───────────────────────────────────────────────────
+function buildAllAlerts() {
+  const alerts = [];
+  const today2 = new Date(); today2.setHours(0,0,0,0);
+
+  // 1. DOCUMENT EXPIRY ALERTS
+  (DB.docs||[]).forEach(d => {
+    if(!d.expiry) return;
+    const exp = new Date(d.expiry); exp.setHours(0,0,0,0);
+    const daysLeft = Math.floor((exp - today2) / 864e5);
+    const thresholds = getDocThreshold(d.name);
+    const truck = truckName(d.tid);
+    thresholds.forEach(t => {
+      if(daysLeft <= t) {
+        const key = 'doc_' + d.id + '_' + t;
+        const isDismissed = DB.alertDismissed && DB.alertDismissed[key];
+        alerts.push({
+          key, type:'doc', sev: daysLeft<0?'rd': daysLeft<=7?'rd':'am',
+          icon:'📄', dismissed: isDismissed,
+          title: d.name + ' — ' + H(truck),
+          msg: daysLeft<0 ? 'EXPIRED '+Math.abs(daysLeft)+' days ago' :
+               daysLeft===0 ? 'EXPIRES TODAY' :
+               'Expires in '+daysLeft+' days ('+fD(d.expiry)+')',
+          action: "go('docs')", actionLbl:'Renew',
+          daysLeft, docId: d.id
+        });
+      }
+    });
+  });
+
+  // 2. MAINTENANCE OVERDUE ALERTS
+  (DB.maint||[]).forEach(m => {
+    const curO = odo(m.tid);
+    const nextDue = (+(m.lastKm)||0) + (+(m.intv)||0);
+    const rem = nextDue - curO;
+    const truck = truckName(m.tid);
+    if(rem <= 0) {
+      const key = 'maint_' + m.id + '_overdue';
+      alerts.push({
+        key, type:'maint', sev:'rd', icon:'🔧', dismissed: DB.alertDismissed?.[key],
+        title: m.item + ' — ' + truck,
+        msg: 'OVERDUE by ' + KM(Math.abs(rem)) + ' — Last done at ' + KM(+(m.lastKm)||0),
+        action:"go('maint')", actionLbl:'Service'
+      });
+    } else if(rem <= 2000) {
+      const key = 'maint_' + m.id + '_soon';
+      alerts.push({
+        key, type:'maint', sev:'am', icon:'🔧', dismissed: DB.alertDismissed?.[key],
+        title: m.item + ' — ' + truck,
+        msg: 'Due in ' + KM(rem) + ' — Schedule service soon',
+        action:"go('maint')", actionLbl:'Plan'
+      });
+    }
+  });
+
+  // 3. TYRE REPLACEMENT ALERTS (1 month = ~3000 km before end of life)
+  (DB.tyres||[]).forEach(t => {
+    if(t.status !== 'In Use' || !+(t.exp)) return;
+    const curO = odo(t.tid);
+    const used = +(t.rem)>0 ? +(t.rem)-+(t.fit) : (curO>+(t.fit)&&+(t.fit)>0 ? curO-+(t.fit) : 0);
+    const pct = Math.round(used / +(t.exp) * 100);
+    const remKm = Math.max(0, +(t.exp) - used);
+    const truck = truckName(t.tid);
+    if(pct >= 85 || remKm <= 1000) {
+      const key = 'tyre_' + t.id + '_replace';
+      alerts.push({
+        key, type:'tyre', sev:'rd', icon:'🛞', dismissed: DB.alertDismissed?.[key],
+        title: 'Tyre '+t.pos+' ('+t.brand+') — '+truck,
+        msg: pct+'% life used — REPLACE IMMEDIATELY ('+KM(remKm)+' left)',
+        action:"go('tyres')", actionLbl:'Replace'
+      });
+    } else if(pct >= 70 || remKm <= 5000) {
+      const key = 'tyre_' + t.id + '_soon';
+      alerts.push({
+        key, type:'tyre', sev:'am', icon:'🛞', dismissed: DB.alertDismissed?.[key],
+        title: 'Tyre '+t.pos+' ('+t.brand+') — '+truck,
+        msg: pct+'% life used — Order replacement soon ('+KM(remKm)+' remaining)',
+        action:"go('tyres')", actionLbl:'Order'
+      });
+    }
+  });
+
+  // 4. PAYMENT OVERDUE ALERTS (7+ days)
+  const now4 = new Date();
+  (DB.trips||[]).forEach(t => {
+    if((t.payStatus||'') === 'Paid') return;
+    if(!+(t.pending||0)) return;
+    const days = t.date ? Math.floor((now4 - new Date(t.date)) / 864e5) : 0;
+    if(days >= 7) {
+      const key = 'pay_' + t.id;
+      alerts.push({
+        key, type:'pay', sev: days>30?'rd':'am', icon:'💰', dismissed: DB.alertDismissed?.[key],
+        title: 'Payment from '+(t.broker||'Client')+' — Trip #'+t.id,
+        msg: INR(+(t.pending||0))+' pending for '+days+' days ('+H(t.from||'?')+'→'+H(t.to||'?')+' on '+fD(t.date)+')',
+        action:"go('recv')", actionLbl:'Collect'
+      });
+    }
+  });
+
+  return alerts;
+}
+
+// ── Dismiss an alert ──────────────────────────────────────────────────────────
+function dismissAlert(key) {
+  if(!DB.alertDismissed) DB.alertDismissed = {};
+  DB.alertDismissed[key] = new Date().toISOString();
+  save();
+  go(CP || 'dashboard');
+}
+
+// ── Morning popup — show once per day ────────────────────────────────────────
+function checkMorningAlerts() {
+  const todayKey = 'ALERT_SHOWN_' + today();
+  if(sessionStorage.getItem(todayKey)) return;
+  sessionStorage.setItem(todayKey, '1');
+  const alerts = buildAllAlerts().filter(a => !a.dismissed);
+  if(!alerts.length) return;
+  const red = alerts.filter(a => a.sev === 'rd');
+  const amb = alerts.filter(a => a.sev === 'am');
+  setTimeout(() => {
+    const msg =
+      '🚨 MALDAR FLEET — Daily Alert Summary\n\n' +
+      (red.length ? '🔴 URGENT ('+red.length+'):\n'+red.slice(0,5).map(a=>'• '+a.title+': '+a.msg).join('\n')+'\n\n' : '') +
+      (amb.length ? '🟡 WARNINGS ('+amb.length+'):\n'+amb.slice(0,5).map(a=>'• '+a.title+': '+a.msg).join('\n') : '') +
+      '\n\nOpen app to take action.';
+    if(red.length > 0 || amb.length > 0) {
+      showAlertModal(alerts);
+    }
+  }, 2000);
+}
+
+// ── Alert modal popup ─────────────────────────────────────────────────────────
+function showAlertModal(alerts) {
+  const active = alerts.filter(a => !a.dismissed);
+  if(!active.length) return;
+  const red = active.filter(a => a.sev === 'rd');
+  const amb = active.filter(a => a.sev === 'am');
+  const buildRows = (list) => list.map(a =>
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;margin-bottom:6px;background:'+(a.sev==='rd'?'#fee2e2':'#fffbeb')+';border-left:3px solid '+(a.sev==='rd'?'#dc2626':'#d97706')+'">'+
+    '<div><div style="font-size:12px;font-weight:700;color:'+(a.sev==='rd'?'#b91c1c':'#92400e')+'">'+a.icon+' '+H(a.title)+'</div>'+
+    '<div style="font-size:11px;color:#64748b;margin-top:2px">'+H(a.msg)+'</div></div>'+
+    '<div style="display:flex;gap:4px;flex-shrink:0;margin-left:8px">'+
+    '<button class="btn btn-sm" onclick="dismissAlert(\''+a.key+'\')">✓</button>'+
+    '<button class="btn btn-sm btn-primary" onclick="'+a.action+';CM()">'+a.actionLbl+'</button>'+
+    '</div></div>'
+  ).join('');
+
+  OM('🚨 Daily Alert Summary — ' + new Date().toLocaleDateString('en-IN'),
+    '<div style="max-height:60vh;overflow-y:auto">'+
+    (red.length?'<div class="sdiv" style="color:var(--redtxt)">🔴 Urgent — Action Required ('+red.length+')</div>'+buildRows(red):'') +
+    (amb.length?'<div class="sdiv" style="color:var(--ambertxt)">🟡 Warnings — Plan Ahead ('+amb.length+')</div>'+buildRows(amb):'') +
+    '</div>'+
+    '<div style="margin-top:12px;display:flex;gap:8px">'+
+    '<button class="btn btn-success" style="flex:1" onclick="sendWhatsAppAlerts();CM()">📱 Send to WhatsApp</button>'+
+    '<button class="btn" style="flex:1" onclick="CM()">Close</button>'+
+    '</div>',
+    null
+  );
+}
+
+// ── Send all alerts to WhatsApp ───────────────────────────────────────────────
+function sendWhatsAppAlerts() {
+  const alerts = buildAllAlerts().filter(a => !a.dismissed);
+  if(!alerts.length) { alert('No active alerts to send.'); return; }
+  const red = alerts.filter(a => a.sev === 'rd');
+  const amb = alerts.filter(a => a.sev === 'am');
+  const lines = [
+    '🚛 *MALDAR ROADLINES — Alert Summary*',
+    '📅 ' + new Date().toLocaleDateString('en-IN', {weekday:'long',day:'2-digit',month:'short',year:'numeric'}),
+    '',
+  ];
+  if(red.length) {
+    lines.push('🔴 *URGENT — Action Required:*');
+    red.forEach(a => lines.push('• ' + a.title + ': ' + a.msg));
+    lines.push('');
+  }
+  if(amb.length) {
+    lines.push('🟡 *Warnings — Plan Ahead:*');
+    amb.forEach(a => lines.push('• ' + a.title + ': ' + a.msg));
+    lines.push('');
+  }
+  lines.push('_Maldar Fleet Manager_');
+  const msg = lines.join('\n');
+  const nos = DB.alertNos || [];
+  if(!nos.length) { alert('No alert numbers set. Go to Settings → Alert Numbers to add.'); return; }
+  // Open WhatsApp for each number
+  nos.forEach((no, i) => {
+    const clean = no.replace(/[^0-9]/g,'');
+    const url = 'https://wa.me/91' + clean + '?text=' + encodeURIComponent(msg);
+    setTimeout(() => window.open(url, '_blank'), i * 800);
+  });
+  log('Alerts Sent', 'WhatsApp alert sent to ' + nos.join(', '));
+}
+
+// ── Push Alerts tab to Google Sheet ──────────────────────────────────────────
+function gsAlertRows() {
+  const alerts = buildAllAlerts();
+  const rows = [['Status','Type','Truck/Item','Alert Message','Days Left','Action Required','Dismissed']];
+  alerts.forEach(a => {
+    rows.push([
+      a.dismissed ? '✅ Dismissed' : a.sev === 'rd' ? '🔴 URGENT' : '🟡 Warning',
+      a.type === 'doc' ? 'Document' : a.type === 'maint' ? 'Maintenance' : a.type === 'tyre' ? 'Tyre' : 'Payment',
+      a.title,
+      a.msg,
+      a.daysLeft !== undefined ? a.daysLeft : '',
+      a.actionLbl,
+      a.dismissed ? new Date(a.dismissed).toLocaleDateString('en-IN') : '',
+    ]);
+  });
+  return rows;
+}
+
+
+function addAlertNo(){
+  if(!DB.alertNos)DB.alertNos=[];
+  if(DB.alertNos.length>=5){alert('Maximum 5 numbers allowed.');return;}
+  DB.alertNos.push('');save();go('settings');
+}
+function removeAlertNo(i){
+  if(!DB.alertNos)return;
+  DB.alertNos.splice(i,1);save();go('settings');
+}
+function saveAlertNos(){
+  if(!DB.alertNos)DB.alertNos=[];
+  const nos=[];
+  DB.alertNos.forEach((_,i)=>{
+    const v=(document.getElementById('alrt-no-'+i)?.value||'').trim();
+    if(v)nos.push(v.replace(/[^0-9]/g,''));
+  });
+  DB.alertNos=nos;save();
+  alert('✅ Alert numbers saved: '+nos.join(', '));
+  go('settings');
+}
+
+// ═══════════════════════════════════════════════════
 // MODAL
 
 // ═══════════════════════════════════════════════════
@@ -4775,6 +5052,7 @@ document.addEventListener('DOMContentLoaded', function(){
   initDB();
   checkAuth();
   setTimeout(gsInit, 1000);
+  setTimeout(checkMorningAlerts, 3000);
 });
 </script>
 
