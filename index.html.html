@@ -653,6 +653,8 @@ function migrate(d){
   if(!Array.isArray(d.salarySettlements))d.salarySettlements=[];
   if(!Array.isArray(d.alertNos))d.alertNos=['9949859843','9701538563'];
   if(!d.alertDismissed)d.alertDismissed={};
+  if(!d.pin)d.pin='';
+  if(!d.creds)d.creds={};
   (d.trips||[]).forEach(t=>{
     if(t.payStatus===undefined)t.payStatus='Pending';
     if(t.recv===undefined)t.recv=0;
@@ -4234,13 +4236,44 @@ function gsInit(){
       const obj = JSON.parse(saved);
       gsToken = obj.token;
       gsSheetId = obj.sheetId;
-      gsShowBar('✅ Google Sheets Connected','connected');
-      gsHideConnectBtn();
-      gsPull();
-    }catch(e){gsToken=null;gsSheetId=null;}
+      gsShowBar('⏳ Connecting to Google Sheets...','syncing');
+      // Verify token is still valid before pulling
+      gsVerifyTokenAndPull();
+    }catch(e){gsToken=null;gsSheetId=null;gsShowTokenExpired();}
   } else {
     gsShowBar('Connect Google Sheets to sync across devices','idle');
   }
+}
+
+async function gsVerifyTokenAndPull(){
+  if(!gsToken||!gsSheetId){gsShowTokenExpired();return;}
+  try{
+    // Quick test call to verify token
+    const test = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${gsSheetId}?fields=spreadsheetId`,
+      {headers:{'Authorization':'Bearer '+gsToken}}
+    );
+    if(test.status===401||test.status===403){
+      // Token expired — need fresh token
+      gsToken=null;
+      gsShowTokenExpired();
+      return;
+    }
+    if(!test.ok){
+      gsShowBar('⚠️ Sheet not accessible. Check internet.','error');
+      return;
+    }
+    // Token valid — pull data
+    await gsPull();
+  }catch(e){
+    gsShowBar('⚠️ Connection failed: '+e.message,'error');
+  }
+}
+
+function gsShowTokenExpired(){
+  gsShowBar('🔄 Session expired — tap to reconnect Google Sheets','error');
+  const btn=document.getElementById('gs-connect-btn');
+  if(btn){btn.style.display='';btn.textContent='Reconnect Google Sheets';}
 }
 
 function gsShowBar(msg, state){
@@ -4268,6 +4301,20 @@ function gsConnect(){
     callback: (resp)=>{
       if(resp.error){ gsShowBar('❌ Connection failed: '+resp.error,'error'); return; }
       gsToken = resp.access_token;
+      // If we already have a sheetId saved, skip creation
+      const saved=localStorage.getItem(GS_KEY);
+      if(saved){
+        try{
+          const obj=JSON.parse(saved);
+          if(obj.sheetId){
+            gsSheetId=obj.sheetId;
+            gsSaveCredentials();
+            gsShowBar('⏳ Reconnected — loading latest data...','syncing');
+            gsPull();
+            return;
+          }
+        }catch(e){}
+      }
       gsShowBar('⏳ Setting up Google Sheet...','syncing');
       gsGetOrCreateSheet();
     },
@@ -4553,6 +4600,12 @@ async function gsPull(){
         // Sheet has newer data — auto-import silently
         DB = migrate(sheetDB);
         localStorage.setItem(KEY, JSON.stringify(DB));
+        // Apply synced credentials to localStorage for this device
+        if(DB.pin) localStorage.setItem('FL_PIN', DB.pin);
+        if(DB.creds&&DB.creds.user){
+          localStorage.setItem('FL_USER', DB.creds.user);
+          if(DB.creds.pass) localStorage.setItem('FL_PASS', atob(DB.creds.pass));
+        }
         gsShowBar('✅ Updated from Google Sheets (v'+sheetV+') — data from other device loaded','connected');
         gsHideConnectBtn();
         // Refresh current page to show new data
@@ -4645,8 +4698,14 @@ const DEFAULT_PASS = 'fleet2024';
 let _pinBuf = '';
 let _pinMode = true; // true=PIN mode, false=password mode
 
-function getPin(){ return localStorage.getItem('FL_PIN') || DEFAULT_PIN; }
-function getCredentials(){ return {user:localStorage.getItem('FL_USER')||DEFAULT_USER, pass:localStorage.getItem('FL_PASS')||DEFAULT_PASS}; }
+function getPin(){ return DB.pin || localStorage.getItem('FL_PIN') || DEFAULT_PIN; }
+function getCredentials(){
+  // DB.creds syncs across devices via Google Sheets
+  if(DB.creds&&DB.creds.user){
+    return {user:DB.creds.user, pass:DB.creds.pass?atob(DB.creds.pass):localStorage.getItem('FL_PASS')||DEFAULT_PASS};
+  }
+  return {user:localStorage.getItem('FL_USER')||DEFAULT_USER, pass:localStorage.getItem('FL_PASS')||DEFAULT_PASS};
+}
 function isLoggedIn(){ return sessionStorage.getItem('FL_AUTH')==='yes'; }
 
 // ── PIN KEYPAD ────────────────────────────────────────────────────────────────
@@ -4778,9 +4837,12 @@ function saveCreds(){
     if(!/^\d{4}$/.test(pin)){alert('PIN must be exactly 4 digits (0-9).');return;}
     if(pin!==pin2){alert('PINs do not match.');return;}
     localStorage.setItem('FL_PIN',pin);
+    DB.pin=pin; // Also store in DB so it syncs to all devices
   }
   localStorage.setItem('FL_USER',u);
   if(p)localStorage.setItem('FL_PASS',p);
+  // Store in DB too so credentials sync across devices
+  DB.creds={user:u,pass:p?btoa(p):(DB.creds?.pass||'')};
   alert('✅ Login credentials saved!\n\nPIN: '+(pin?'Updated':'Unchanged')+'\nUsername: '+u+'\nPassword: '+(p?'Updated':'Unchanged'));
 }
 
