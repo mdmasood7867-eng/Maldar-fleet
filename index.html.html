@@ -464,6 +464,10 @@ textarea.fc{resize:vertical;min-height:60px}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       Settings
     </button>
+    <button class="nav-btn" onclick="go('admin')" data-p="admin" id="admin-nav-btn" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Users</span>
+    </button>
   </div>
 </nav>
 <!-- MAIN -->
@@ -655,6 +659,8 @@ function migrate(d){
   if(!d.alertDismissed)d.alertDismissed={};
   if(!d.pin)d.pin='';
   if(!d.creds)d.creds={};
+  if(!Array.isArray(d.users))d.users=[];
+  if(d.adminBypass===undefined)d.adminBypass=false;
   (d.trips||[]).forEach(t=>{
     if(t.payStatus===undefined)t.payStatus='Pending';
     if(t.recv===undefined)t.recv=0;
@@ -673,7 +679,7 @@ function fresh(){
     tyres:mkTyres(),maint:mkMaint(),docs:mkDocs(),
     fixed:mkFixed(),savings:mkSavings(),
     drivers:[],brokers:[],paddySeas:[],paddyEntr:[],activity:[],
-    alertNos:['9949859843','9701538563'],alertDismissed:{}
+    alertNos:['9949859843','9701538563'],alertDismissed:{},users:[],adminBypass:false
   };
 }
 function mkTyres(){
@@ -828,7 +834,8 @@ function normPay(t){
 
 function log(type,detail){
   if(!DB.activity)DB.activity=[];
-  DB.activity.unshift({id:nid(DB.activity),type,detail,ts:now()});
+  const _cu2=currentUser();const _un2=_cu2?(_cu2.role==='admin'?'Admin':_cu2.name):'System';
+  DB.activity.unshift({id:nid(DB.activity),type,detail,user:_un2,ts:now()});
   if(DB.activity.length>300)DB.activity=DB.activity.slice(0,300);
 }
 
@@ -839,16 +846,22 @@ function truckColor(tid){return tid===1?'#2563eb':'#7c3aed';}
 // NAVIGATION
 // ═══════════════════════════════════════════════════
 let CP='dashboard',MC=null,EID=null,CHI={};
-const TITLES={dashboard:'Dashboard',quick:'Quick Entry',trips:'Trip Log',fuel:'Fuel Log',expenses:'Expenses',recv:'Receivables',routes:'Route Analysis',fleet:'Fleet Overview',drivers:'Drivers',brokers:'Brokers',maint:'Maintenance & Service',docs:'Documents & Expiry',tyres:'Tyre Tracker',loans:'Loans',pl:'Monthly P&L',cashflow:'Weekly Cash Flow',fixed:'Fixed Costs & Cost/KM',savings:'Savings',paddy:'Paddy Season',bank:'Bank Report',activity:'Activity Log',settings:'Settings',bilty:'Bilty / Invoice Generator',quotation:'Quotation / Proforma Invoice',salary:'Driver Salary Settlement',monthly:'Monthly Full Report',emptyKm:'Empty KM Report'};
+const TITLES={dashboard:'Dashboard',quick:'Quick Entry',trips:'Trip Log',fuel:'Fuel Log',expenses:'Expenses',recv:'Receivables',routes:'Route Analysis',fleet:'Fleet Overview',drivers:'Drivers',brokers:'Brokers',maint:'Maintenance & Service',docs:'Documents & Expiry',tyres:'Tyre Tracker',loans:'Loans',pl:'Monthly P&L',cashflow:'Weekly Cash Flow',fixed:'Fixed Costs & Cost/KM',savings:'Savings',paddy:'Paddy Season',bank:'Bank Report',activity:'Activity Log',settings:'Settings',bilty:'Bilty / Invoice Generator',quotation:'Quotation / Proforma Invoice',salary:'Driver Salary Settlement',monthly:'Monthly Full Report',emptyKm:'Empty KM Report',admin:'User Management',admin:'User Management'};
 
 function go(p){
+  if(p!=='dashboard'){
+    const _cu=currentUser();
+    if(_cu&&_cu.role!=='admin'&&!canAccessPage(p)){
+      go('dashboard');return;
+    }
+  }
   CP=p;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.p===p));
   document.getElementById('ttl').textContent=TITLES[p]||p;
   document.getElementById('tsub').textContent=`${DB.trucks.filter(t=>t.status==='Active').length} Active Trucks · Maldar Roadlines`;
   document.getElementById('topbar-actions').innerHTML='';
   Object.values(CHI).forEach(c=>{try{c.destroy();}catch(e){}});CHI={};
-  const pages={dashboard:pgDash,quick:pgQuick,trips:pgTrips,fuel:pgFuel,expenses:pgExp,recv:pgRecv,routes:pgRoutes,fleet:pgFleet,drivers:pgDrivers,brokers:pgBrokers,maint:pgMaint,docs:pgDocs,tyres:pgTyres,loans:pgLoans,pl:pgPL,cashflow:pgCF,fixed:pgFixed,savings:pgSav,paddy:pgPaddy,bank:pgBank,activity:pgActivity,settings:pgSettings,bilty:pgBilty,quotation:pgQuotation,salary:pgSalary,monthly:pgMonthly,emptyKm:pgEmptyKm};
+  const pages={dashboard:pgDash,quick:pgQuick,trips:pgTrips,fuel:pgFuel,expenses:pgExp,recv:pgRecv,routes:pgRoutes,fleet:pgFleet,drivers:pgDrivers,brokers:pgBrokers,maint:pgMaint,docs:pgDocs,tyres:pgTyres,loans:pgLoans,pl:pgPL,cashflow:pgCF,fixed:pgFixed,savings:pgSav,paddy:pgPaddy,bank:pgBank,activity:pgActivity,settings:pgSettings,bilty:pgBilty,quotation:pgQuotation,salary:pgSalary,monthly:pgMonthly,emptyKm:pgEmptyKm,admin:pgAdmin};
   document.getElementById('content').innerHTML=pages[p]?pages[p]():emSt('Coming soon','');
   if(p==='dashboard')afterDash();
   if(p==='pl')afterPL();
@@ -1125,6 +1138,9 @@ ${(()=>{
 }
 
 function afterDash(){
+  const adminBtn=document.getElementById('admin-nav-btn');
+  if(adminBtn)adminBtn.style.display=isAdmin()?'':'none';
+
   const gc='#e0dfd7',lc='#999';
   const mns=[],inc=[],exp=[];
   for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);
@@ -1681,6 +1697,23 @@ function quickStatus(id, newStatus){
   if(newStatus==='Paid'){t.recv=t.income;t.pending=0;t.payStatus='Paid';}
   log('Trip Status',`#${id}: ${old} → ${newStatus}`);
   save();go('trips');
+}
+
+function requireReason(action, cb){
+  const u = currentUser();
+  // Admin with bypass enabled can skip reason
+  if(u&&u.role==='admin'&&DB.adminBypass){ cb('Admin bypass'); return; }
+  OM('Write Reason for '+action,
+    `<div class="fg">
+      <label class="fl">Why are you doing this? <span class="req">*</span></label>
+      <textarea class="fc" id="req-reason" rows="3" placeholder="Explain the reason (min 10 characters)..."></textarea>
+    </div>`,
+    ()=>{
+      const r=(document.getElementById('req-reason')?.value||'').trim();
+      if(r.length<10){alert('Please write a reason (minimum 10 characters).');return;}
+      CM();cb(r);
+    }
+  );
 }
 
 function delTrip(id){
@@ -4357,7 +4390,7 @@ async function gsCreateSheet(){
           {properties:{title:'Documents'}},{properties:{title:'Loans'}},
           {properties:{title:'LoanPayments'}},{properties:{title:'FixedCosts'}},
           {properties:{title:'Savings'}},{properties:{title:'Settings'}},
-          {properties:{title:'Alerts'}},{properties:{title:'Summary'}},{properties:{title:'Alerts'}},{properties:{title:'JSONBackup'}},
+          {properties:{title:'Users'}},{properties:{title:'Alerts'}},{properties:{title:'Summary'}},{properties:{title:'Alerts'}},{properties:{title:'JSONBackup'}},
         ]
       })
     });
@@ -4482,7 +4515,12 @@ async function gsPushAll(){
 
     // ── SETTINGS (Owner) ───────────────────────────────────────────────────────
     const own=DB.owner||{};
-    updates.push({range:'Settings!A1',values:[
+    // ── USERS (for admin reference only) ────────────────────────────────────
+    const usrRows=[['#','Name','Username','Role','Pages Count','PIN Set','Money Visible']];
+    (DB.users||[]).forEach(u=>usrRows.push([u.id,u.name,u.username,u.role,(u.pages||[]).length,u.pin?'Yes':'No',u.hideMoney?'Hidden':'Visible']));
+    updates.push({range:'Users!A1',values:usrRows});
+
+        updates.push({range:'Settings!A1',values:[
       ['OWNER DETAILS',''],
       ['Name',own.name||''],['Phone',own.phone||''],['Address',own.address||''],
       ['GST',own.gst||''],['Bank',own.bank||''],['Account No',own.acc||''],
@@ -4950,9 +4988,16 @@ function getDocThreshold(docName) {
 function buildAllAlerts() {
   const alerts = [];
   const today2 = new Date(); today2.setHours(0,0,0,0);
+  const _alertUser = currentUser();
+  const _isDriver = _alertUser && _alertUser.role === 'driver';
+  const _driverName = _isDriver ? _alertUser.name : null;
 
   // 1. DOCUMENT EXPIRY ALERTS
-  (DB.docs||[]).forEach(d => {
+  (DB.docs||[]).filter(d => {
+    if(!_isDriver) return true;
+    const drv = (DB.drivers||[]).find(x=>x.name===_driverName);
+    return drv ? d.tid===drv.truckId : true;
+  }).forEach(d => {
     if(!d.expiry) return;
     const exp = new Date(d.expiry); exp.setHours(0,0,0,0);
     const daysLeft = Math.floor((exp - today2) / 864e5);
@@ -4977,7 +5022,12 @@ function buildAllAlerts() {
   });
 
   // 2. MAINTENANCE OVERDUE ALERTS
-  (DB.maint||[]).forEach(m => {
+  (DB.maint||[]).filter(m => {
+    if(!_isDriver) return true;
+    // Driver sees only their assigned truck
+    const drv = (DB.drivers||[]).find(d=>d.name===_driverName);
+    return drv ? m.tid===drv.truckId : true;
+  }).forEach(m => {
     const curO = odo(m.tid);
     const nextDue = (+(m.lastKm)||0) + (+(m.intv)||0);
     const rem = nextDue - curO;
@@ -5002,7 +5052,11 @@ function buildAllAlerts() {
   });
 
   // 3. TYRE REPLACEMENT ALERTS (1 month = ~3000 km before end of life)
-  (DB.tyres||[]).forEach(t => {
+  (DB.tyres||[]).filter(t => {
+    if(!_isDriver) return true;
+    const drv = (DB.drivers||[]).find(d=>d.name===_driverName);
+    return drv ? t.tid===drv.truckId : true;
+  }).forEach(t => {
     if(t.status !== 'In Use' || !+(t.exp)) return;
     const curO = odo(t.tid);
     const used = +(t.rem)>0 ? +(t.rem)-+(t.fit) : (curO>+(t.fit)&&+(t.fit)>0 ? curO-+(t.fit) : 0);
@@ -5028,22 +5082,24 @@ function buildAllAlerts() {
     }
   });
 
-  // 4. PAYMENT OVERDUE ALERTS (7+ days)
-  const now4 = new Date();
-  (DB.trips||[]).forEach(t => {
-    if((t.payStatus||'') === 'Paid') return;
-    if(!+(t.pending||0)) return;
-    const days = t.date ? Math.floor((now4 - new Date(t.date)) / 864e5) : 0;
-    if(days >= 7) {
-      const key = 'pay_' + t.id;
-      alerts.push({
-        key, type:'pay', sev: days>30?'rd':'am', icon:'💰', dismissed: DB.alertDismissed?.[key],
-        title: 'Payment from '+(t.broker||'Client')+' — Trip #'+t.id,
-        msg: INR(+(t.pending||0))+' pending for '+days+' days ('+H(t.from||'?')+'→'+H(t.to||'?')+' on '+fD(t.date)+')',
-        action:"go('recv')", actionLbl:'Collect'
-      });
-    }
-  });
+  // 4. PAYMENT OVERDUE ALERTS (7+ days) — hidden from drivers
+  if(!_isDriver){
+    const now4 = new Date();
+    (DB.trips||[]).forEach(t => {
+      if((t.payStatus||'') === 'Paid') return;
+      if(!+(t.pending||0)) return;
+      const days = t.date ? Math.floor((now4 - new Date(t.date)) / 864e5) : 0;
+      if(days >= 7) {
+        const key = 'pay_' + t.id;
+        alerts.push({
+          key, type:'pay', sev: days>30?'rd':'am', icon:'💰', dismissed: DB.alertDismissed?.[key],
+          title: 'Payment from '+(t.broker||'Client')+' — Trip #'+t.id,
+          msg: INR(+(t.pending||0))+' pending for '+days+' days ('+H(t.from||'?')+'→'+H(t.to||'?')+' on '+fD(t.date)+')',
+          action:"go('recv')", actionLbl:'Collect'
+        });
+      }
+    });
+  }
 
   return alerts;
 }
@@ -5061,6 +5117,7 @@ function checkMorningAlerts() {
   const todayKey = 'ALERT_SHOWN_' + today();
   if(sessionStorage.getItem(todayKey)) return;
   sessionStorage.setItem(todayKey, '1');
+  // buildAllAlerts already filters by role — payment alerts hidden from drivers
   const alerts = buildAllAlerts().filter(a => !a.dismissed);
   if(!alerts.length) return;
   const red = alerts.filter(a => a.sev === 'rd');
@@ -5179,6 +5236,405 @@ function saveAlertNos(){
   alert('✅ Alert numbers saved: '+nos.join(', '));
   go('settings');
 }
+
+// ═══════════════════════════════════════════════════
+// USER MANAGEMENT SYSTEM
+// ═══════════════════════════════════════════════════
+
+// Default page sets per role
+const ROLE_PAGES = {
+  admin:   ['dashboard','quick','trips','fuel','exp','recv','routes','fleet',
+            'drivers','brokers','maint','docs','tyres','loans','pl','cf',
+            'fixed','sav','paddy','bank','activity','settings','bilty',
+            'quotation','salary','monthly','emptyKm','admin'],
+  manager: ['dashboard','quick','trips','fuel','exp','recv','routes','fleet',
+            'drivers','brokers','maint','docs','tyres','loans','pl','cf',
+            'sav','paddy','activity','settings','bilty','quotation','monthly','emptyKm'],
+  driver:  ['quick','trips','fuel','exp','maint','docs'],
+  custom:  [],
+};
+
+// Pages where financial numbers are hidden for non-admin/manager
+const HIDE_MONEY_PAGES = ['trips','dashboard','recv','pl','cf','bank','monthly','emptyKm','fixed'];
+
+// Get current logged-in user object
+function currentUser(){
+  const uid = sessionStorage.getItem('FL_UID');
+  if(!uid) return null;
+  if(uid === 'admin') return {id:'admin',name:'Admin',role:'admin',pages:ROLE_PAGES.admin,pin:getPin()};
+  return (DB.users||[]).find(u=>u.id===uid)||null;
+}
+
+// Check if current user is admin
+function isAdmin(){ const u=currentUser(); return u&&u.role==='admin'; }
+function isManager(){ const u=currentUser(); return u&&(u.role==='admin'||u.role==='manager'); }
+
+// Check if current user can see financial numbers
+function canSeeMoney(){
+  const u=currentUser();
+  if(!u) return false;
+  return u.role==='admin'||u.role==='manager';
+}
+
+// Check if current user can access a page
+function canAccessPage(page){
+  const u=currentUser();
+  if(!u) return false;
+  if(u.role==='admin') return true;
+  const pages = u.pages || ROLE_PAGES[u.role] || [];
+  return pages.includes(page);
+}
+
+// ── Admin page ─────────────────────────────────────────────────────────────
+function pgAdmin(){
+  if(!isAdmin()){
+    document.getElementById('app').innerHTML='<div class="card" style="margin:20px"><div class="alert al-rd">⛔ Admin access only.</div></div>';
+    return;
+  }
+  const users = DB.users||[];
+  const allPages = [
+    {id:'dashboard',label:'Dashboard'},
+    {id:'quick',label:'Quick Entry'},
+    {id:'trips',label:'Trip Log'},
+    {id:'fuel',label:'Fuel Log'},
+    {id:'exp',label:'Expenses'},
+    {id:'recv',label:'Receivables'},
+    {id:'routes',label:'Routes'},
+    {id:'fleet',label:'Fleet Overview'},
+    {id:'drivers',label:'Drivers'},
+    {id:'brokers',label:'Brokers'},
+    {id:'maint',label:'Maintenance'},
+    {id:'docs',label:'Documents'},
+    {id:'tyres',label:'Tyres'},
+    {id:'loans',label:'Loans'},
+    {id:'pl',label:'Monthly P&L'},
+    {id:'cf',label:'Cash Flow'},
+    {id:'fixed',label:'Fixed Costs'},
+    {id:'sav',label:'Savings'},
+    {id:'paddy',label:'Paddy Season'},
+    {id:'bank',label:'Bank Report'},
+    {id:'activity',label:'Activity Log'},
+    {id:'settings',label:'Settings'},
+    {id:'bilty',label:'Bilty/Invoice'},
+    {id:'quotation',label:'Quotation'},
+    {id:'salary',label:'Driver Salary'},
+    {id:'monthly',label:'Monthly Report'},
+    {id:'emptyKm',label:'Empty KM Report'},
+  ];
+
+  document.getElementById('app').innerHTML=`
+  <div class="card mb14">
+    <div class="fw7 mb4" style="font-size:15px">👤 User Management</div>
+    <div class="infobox mb12">Create and manage users. Admin and Manager see all financial data. Driver role hides all money figures. Custom lets you set access page by page.</div>
+
+    <div class="fr2 mb10">
+      <div style="font-weight:700;font-size:13px">Users (${users.length+1})</div>
+      <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ Add User</button>
+    </div>
+
+    <!-- Admin row (you) -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;background:#eff6ff;border:1.5px solid #2563eb;margin-bottom:8px">
+      <div>
+        <div style="font-weight:800;font-size:13px">👑 Masood (Admin)</div>
+        <div class="fs11 col-3">Full access · Cannot be edited or deleted</div>
+      </div>
+      <span class="badge b-bl">Admin</span>
+    </div>
+
+    ${users.map(u=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;border:1px solid var(--border);margin-bottom:8px;background:var(--bg2)">
+      <div>
+        <div style="font-weight:700;font-size:13px">${H(u.name)} <span class="fs11 col-3">(${H(u.username)})</span></div>
+        <div class="fs11 col-3">Role: ${u.role==='custom'?'Custom — '+((u.pages||[]).length)+' pages':u.role.charAt(0).toUpperCase()+u.role.slice(1)} · PIN: ${u.pin||'Not set'}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span class="badge ${u.role==='manager'?'b-gn':u.role==='driver'?'b-am':'b-tl'}">${u.role}</span>
+        <button class="btn btn-sm" onclick="openUserModal('${u.id}')">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteUser('${u.id}')">Del</button>
+      </div>
+    </div>`).join('')}
+  </div>
+
+  <div class="card mb14">
+    <div class="fw7 mb12" style="font-size:13px">🔑 Admin Settings</div>
+    <div class="fr2">
+      <div class="fg">
+        <label class="fl">Admin Reason Bypass</label>
+        <div class="fs11 col-3 mb8">When ON — admin can edit/delete without writing a reason.</div>
+        <button class="btn ${DB.adminBypass?'btn-danger':'btn-primary'}" onclick="toggleAdminBypass()">
+          ${DB.adminBypass?'✅ Bypass ON — click to require reasons':'❌ Bypass OFF — click to skip reasons'}
+        </button>
+      </div>
+      <div class="fg">
+        <label class="fl">Audit Log — Recent Actions</label>
+        <div style="max-height:200px;overflow-y:auto;font-size:11px">
+          ${(DB.activity||[]).slice(-10).reverse().map(a=>
+            `<div style="padding:4px 0;border-bottom:1px solid var(--border)">
+              <span class="fw6">${H(a.user||'Admin')}</span> · ${H(a.action)} · <span class="col-3">${H(a.detail||'')}</span>
+              <span class="col-3 fs10"> — ${H(a.ts||'')}</span>
+            </div>`
+          ).join('')}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Add/Edit user modal ─────────────────────────────────────────────────────
+function openUserModal(uid){
+  const u = uid ? (DB.users||[]).find(x=>x.id===uid) : null;
+  const allPages = [
+    {id:'dashboard',label:'📊 Dashboard'},{id:'quick',label:'⚡ Quick Entry'},
+    {id:'trips',label:'🚛 Trip Log'},{id:'fuel',label:'⛽ Fuel Log'},
+    {id:'exp',label:'💸 Expenses'},{id:'recv',label:'💰 Receivables'},
+    {id:'routes',label:'🗺️ Routes'},{id:'fleet',label:'🚚 Fleet Overview'},
+    {id:'drivers',label:'👤 Drivers'},{id:'brokers',label:'🤝 Brokers'},
+    {id:'maint',label:'🔧 Maintenance'},{id:'docs',label:'📄 Documents'},
+    {id:'tyres',label:'🛞 Tyres'},{id:'loans',label:'🏦 Loans'},
+    {id:'pl',label:'📈 Monthly P&L'},{id:'cf',label:'💧 Cash Flow'},
+    {id:'fixed',label:'📋 Fixed Costs'},{id:'sav',label:'💰 Savings'},
+    {id:'paddy',label:'🌾 Paddy Season'},{id:'bank',label:'🏦 Bank Report'},
+    {id:'activity',label:'📝 Activity Log'},{id:'settings',label:'⚙️ Settings'},
+    {id:'bilty',label:'🧾 Bilty/Invoice'},{id:'quotation',label:'📋 Quotation'},
+    {id:'salary',label:'👤 Driver Salary'},{id:'monthly',label:'📊 Monthly Report'},
+    {id:'emptyKm',label:'📏 Empty KM Report'},
+  ];
+
+  OM(u?`Edit User — ${H(u.name)}`:'Add New User',`
+    <div class="fr2">
+      <div class="fg"><label class="fl">Full Name <span class="req">*</span></label>
+        <input type="text" class="fc" id="um-name" value="${H(u?.name||'')}" placeholder="e.g. Raju Driver"></div>
+      <div class="fg"><label class="fl">Username <span class="req">*</span></label>
+        <input type="text" class="fc" id="um-user" value="${H(u?.username||'')}" placeholder="e.g. raju123" autocomplete="off"></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label class="fl">Password <span class="req">*</span></label>
+        <input type="password" class="fc" id="um-pass" placeholder="${u?'Leave blank to keep current':'Set password'}" autocomplete="new-password"></div>
+      <div class="fg"><label class="fl">4-Digit PIN <span class="req">*</span></label>
+        <input type="text" class="fc" id="um-pin" value="${u?.pin||''}" placeholder="e.g. 5678" maxlength="4" pattern="[0-9]{4}"></div>
+    </div>
+    <div class="fg mb10"><label class="fl">Role</label>
+      <select class="fc" id="um-role" onchange="umToggleCustom()">
+        <option value="manager" ${u?.role==='manager'?'selected':''}>Manager — all pages, sees all numbers</option>
+        <option value="driver" ${u?.role==='driver'?'selected':''}>Driver — limited pages, NO financial numbers</option>
+        <option value="custom" ${u?.role==='custom'?'selected':''}>Custom — I pick the pages below</option>
+      </select>
+    </div>
+    <div id="um-custom-pages" style="display:${u?.role==='custom'?'block':'none'}">
+      <div class="sdiv">Select Pages for This User</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
+        ${allPages.map(p=>`
+          <label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);cursor:pointer;background:var(--bg2)">
+            <input type="checkbox" id="up-${p.id}" ${(u?.pages||[]).includes(p.id)?'checked':''}>
+            <span style="font-size:12px">${p.label}</span>
+          </label>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="btn btn-sm" onclick="umSelectAll()">Select All</button>
+        <button class="btn btn-sm" onclick="umClearAll()">Clear All</button>
+        <button class="btn btn-sm" onclick="umPreset('driver')">Driver Preset</button>
+        <button class="btn btn-sm" onclick="umPreset('manager')">Manager Preset</button>
+      </div>
+    </div>
+    <div class="fg"><label class="fl">Hide Financial Numbers?</label>
+      <select class="fc" id="um-hidemon">
+        <option value="0" ${!u?.hideMoney?'selected':''}>No — user can see all numbers</option>
+        <option value="1" ${u?.hideMoney?'selected':''}>Yes — hide income, profit, cost/km, payments</option>
+      </select>
+    </div>`,
+  ()=>saveUser(uid));
+}
+
+function umToggleCustom(){
+  const role = document.getElementById('um-role')?.value;
+  const el = document.getElementById('um-custom-pages');
+  if(el) el.style.display = role==='custom'?'block':'none';
+}
+
+function umSelectAll(){
+  document.querySelectorAll('[id^="up-"]').forEach(cb=>cb.checked=true);
+}
+function umClearAll(){
+  document.querySelectorAll('[id^="up-"]').forEach(cb=>cb.checked=false);
+}
+function umPreset(role){
+  const pages = ROLE_PAGES[role]||[];
+  document.querySelectorAll('[id^="up-"]').forEach(cb=>{
+    const pid = cb.id.replace('up-','');
+    cb.checked = pages.includes(pid);
+  });
+}
+
+function saveUser(uid){
+  const name = document.getElementById('um-name')?.value.trim();
+  const username = document.getElementById('um-user')?.value.trim().toLowerCase();
+  const pass = document.getElementById('um-pass')?.value;
+  const pin = document.getElementById('um-pin')?.value.trim();
+  const role = document.getElementById('um-role')?.value;
+  const hideMoney = document.getElementById('um-hidemon')?.value === '1';
+
+  if(!name){alert('Name is required.');return;}
+  if(!username){alert('Username is required.');return;}
+  if(!uid&&!pass){alert('Password is required for new user.');return;}
+  if(pin&&!/^\d{4}$/.test(pin)){alert('PIN must be exactly 4 digits.');return;}
+
+  // Check username unique
+  const existing = (DB.users||[]).find(u=>u.username===username&&u.id!==uid);
+  if(existing){alert('Username already taken. Choose another.');return;}
+
+  // Collect custom pages
+  let pages = ROLE_PAGES[role]||[];
+  if(role==='custom'){
+    pages = [];
+    document.querySelectorAll('[id^="up-"]').forEach(cb=>{
+      if(cb.checked) pages.push(cb.id.replace('up-',''));
+    });
+  }
+
+  if(!DB.users) DB.users=[];
+  if(uid){
+    const i = DB.users.findIndex(u=>u.id===uid);
+    if(i>=0){
+      DB.users[i] = {
+        ...DB.users[i], name, username, role, pages, hideMoney, pin:pin||DB.users[i].pin,
+        pass: pass ? btoa(pass) : DB.users[i].pass,
+      };
+    }
+  } else {
+    DB.users.push({
+      id:'u'+Date.now(), name, username, role, pages, hideMoney,
+      pin: pin||'1234', pass: btoa(pass),
+    });
+  }
+  log('User '+(uid?'Updated':'Created'), name+' ('+username+') — role: '+role);
+  save(); CM(); go('admin');
+}
+
+function deleteUser(uid){
+  const u=(DB.users||[]).find(x=>x.id===uid);
+  if(!u)return;
+  const reason=prompt(`You are deleting user "${u.name}". Write reason (min 10 chars):`);
+  if(!reason||reason.trim().length<10){alert('Reason required (min 10 characters).');return;}
+  DB.users=(DB.users||[]).filter(x=>x.id!==uid);
+  log('User Deleted',u.name+' — Reason: '+reason.trim());
+  save(); go('admin');
+}
+
+function toggleAdminBypass(){
+  DB.adminBypass = !DB.adminBypass;
+  save(); go('admin');
+}
+
+// ── User login (after PIN) ──────────────────────────────────────────────────
+function showUserSelect(){
+  // After PIN verified — show user selection
+  const users = DB.users||[];
+  if(!users.length){
+    // No sub-users — log in as admin directly
+    sessionStorage.setItem('FL_UID','admin');
+    onLoginSuccess();
+    return;
+  }
+  // Show user selector
+  const scr = document.getElementById('login-screen');
+  if(!scr) return;
+  scr.innerHTML = `
+    <div class="login-box">
+      <div class="login-logo">👤 Who are you?</div>
+      <div style="margin-bottom:16px">
+        <!-- Admin option -->
+        <div onclick="selectUser('admin')" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;border:2px solid #2563eb;background:#eff6ff;cursor:pointer;margin-bottom:8px">
+          <div style="font-size:24px">👑</div>
+          <div><div style="font-weight:800;font-size:14px">Masood (Admin)</div><div style="font-size:11px;color:#64748b">Full access</div></div>
+        </div>
+        ${users.map(u=>`
+        <div onclick="selectUser('${u.id}')" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg2);cursor:pointer;margin-bottom:8px">
+          <div style="font-size:24px">${u.role==='driver'?'🚛':u.role==='manager'?'👔':'👤'}</div>
+          <div><div style="font-weight:700;font-size:14px">${H(u.name)}</div><div style="font-size:11px;color:#64748b">${u.role.charAt(0).toUpperCase()+u.role.slice(1)}</div></div>
+        </div>`).join('')}
+      </div>
+      <button class="btn" style="width:100%;margin-top:4px" onclick="doLogout()">← Back</button>
+    </div>`;
+}
+
+function selectUser(uid){
+  // Show password entry for selected user
+  const scr = document.getElementById('login-screen');
+  const u = uid==='admin' ? {name:'Masood',username:'admin'} : (DB.users||[]).find(x=>x.id===uid);
+  if(!u){return;}
+  scr.innerHTML=`
+    <div class="login-box">
+      <div class="login-logo">${uid==='admin'?'👑':'👤'} ${H(u.name)}</div>
+      <div class="fg mb10">
+        <label class="fl">Password</label>
+        <input type="password" class="fc" id="ul-pass" placeholder="Enter your password" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="verifyUserPass('${uid}')">Login →</button>
+      <button class="btn" style="width:100%" onclick="showUserSelect()">← Back</button>
+    </div>`;
+  setTimeout(()=>document.getElementById('ul-pass')?.focus(),100);
+}
+
+function verifyUserPass(uid){
+  const pass = document.getElementById('ul-pass')?.value||'';
+  if(uid==='admin'){
+    const creds = getCredentials();
+    if(pass !== creds.pass && pass !== atob(localStorage.getItem('FL_PASS')||btoa(pass))){
+      // Try plain comparison
+      const storedPass = localStorage.getItem('FL_PASS')||'fleet2024';
+      if(pass !== storedPass){ alert('Wrong password.'); return; }
+    }
+  } else {
+    const u = (DB.users||[]).find(x=>x.id===uid);
+    if(!u){ alert('User not found.'); return; }
+    let stored = '';
+    try{ stored = atob(u.pass); }catch(e){ stored = u.pass; }
+    if(pass !== stored){ alert('Wrong password.'); return; }
+  }
+  sessionStorage.setItem('FL_UID', uid);
+  onLoginSuccess();
+}
+
+function onLoginSuccess(){
+  const scr = document.getElementById('login-screen');
+  const lbtn = document.getElementById('lock-btn');
+  if(scr) scr.style.display='none';
+  if(lbtn){ lbtn.style.display='block'; lbtn.textContent='🔒 '+getCurrentUserName(); }
+  // Apply access restrictions
+  applyUserAccess();
+  go('dashboard');
+  setTimeout(gsInit,1000);
+  setTimeout(checkMorningAlerts,3000);
+}
+
+function getCurrentUserName(){
+  const u = currentUser();
+  return u ? (u.role==='admin'?'Admin':u.name) : 'Lock';
+}
+
+// ── Apply access restrictions to sidebar + pages ───────────────────────────
+function applyUserAccess(){
+  const u = currentUser();
+  if(!u) return;
+  if(u.role==='admin') return; // Admin sees everything
+  // Hide sidebar items user cannot access
+  document.querySelectorAll('[data-page]').forEach(el=>{
+    const page = el.dataset.page;
+    if(!canAccessPage(page)){
+      el.style.display='none';
+    }
+  });
+}
+
+// ── Override go() to enforce page access ──────────────────────────────────
+const _origGo = null; // patched below
+
+// ── Hide money helper ──────────────────────────────────────────────────────
+function moneyCell(val, cls){
+  if(!canSeeMoney()) return '<td class="tr '+(cls||'')+'">—</td>';
+  return `<td class="tr ${cls||''}">${INR(val)}</td>`;
+}
+
 
 // ═══════════════════════════════════════════════════
 // MODAL
