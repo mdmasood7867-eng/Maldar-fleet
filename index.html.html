@@ -1003,7 +1003,8 @@ ${(()=>{
 })()}
 <div class="g4 mb14">
   <div class="hmetric hero-blue"><div class="mlabel">This Month Income</div><div class="mval">${INR(ms.inc)}</div><div class="msub">${ms.trips} trips completed</div></div>
-  <div class="hmetric ${ms.net>=0?'hero-green':'hero-red'}"><div class="mlabel">Net Profit / Loss</div><div class="mval">${INR(ms.net)}</div><div class="msub">${ms.net>=0?'↑ Making profit':'↓ Running at loss'}</div></div>
+  <div class="hmetric ${ms.net>=0?'hero-green':'hero-red'}"><div class="mlabel">Op. Profit</div><div class="mval">${INR(ms.net)}</div><div class="msub">Fuel+toll+tyre+load</div></div>
+  ${(()=>{const iKM=insurancePKMfor(0);const mKM=maintPKMfor(0);const hidden=Math.round((iKM+mKM)*ms.km);const trueNet=ms.net-hidden;return hidden>0?`<div class="hmetric" style="background:linear-gradient(135deg,#92400e,#b45309);color:#fff"><div class="mlabel">True Profit</div><div class="mval">${INR(trueNet)}</div><div class="msub">After ins+permit+maint</div></div>`:'';})()}
   <div class="hmetric hero-purple"><div class="mlabel">Total Expenses</div><div class="mval">${INR(ms.exp)}</div><div class="msub">Fuel + Toll + Other</div></div>
   <div class="hmetric ${at.pend>0?'hero-amber':'hero-teal'}"><div class="mlabel">Pending Receivables</div><div class="mval">${INR(at.pend)}</div><div class="msub">Unpaid freight money</div></div>
 </div>
