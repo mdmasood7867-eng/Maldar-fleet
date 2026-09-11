@@ -1790,17 +1790,18 @@ function requireReason(action, cb){
 function delTrip(id){
   const trip=DB.trips.find(x=>x.id===id);if(!trip)return;
   const relFuel=DB.fuel.filter(f=>f.tripId===id);
-  if(!confirm(`Delete Trip #${id}? (${trip.from||'?'}→${trip.to||'?'})${relFuel.length?`\n${relFuel.length} linked fuel entries will also be deleted.`:''}`))return;
-  const snapTrip={...trip};const snapFuel=[...relFuel];
-  DB.fuel=DB.fuel.filter(f=>f.tripId!==id);
-  DB.trips=DB.trips.filter(x=>x.id!==id);
-  pushUndo(`Trip #${id} (${trip.from||'?'}→${trip.to||'?'} ${INR(+(trip.income)||0)})`,()=>{
-    DB.trips.push(snapTrip);
-    snapFuel.forEach(f=>DB.fuel.push(f));
-    recalcFuel(snapTrip.tid||1);
+  requireReason('Delete Trip #'+id, (reason)=>{
+    const snapTrip={...trip};const snapFuel=[...relFuel];
+    DB.fuel=DB.fuel.filter(f=>f.tripId!==id);
+    DB.trips=DB.trips.filter(x=>x.id!==id);
+    pushUndo('Trip #'+id+' ('+( trip.from||'?')+'→'+(trip.to||'?')+' '+INR(+(trip.income)||0)+')',()=>{
+      DB.trips.push(snapTrip);
+      snapFuel.forEach(f=>DB.fuel.push(f));
+      recalcFuel(snapTrip.tid||1);
+    });
+    log('Trip Deleted','#'+id+' — Reason: '+reason);recalcFuel(1);recalcFuel(2);save();
+    showUndoToast('Trip #'+id+' deleted — tap Undo within 6s');go('trips');
   });
-  log('Trip Deleted',`#${id}`);recalcFuel(1);recalcFuel(2);save();
-  showUndoToast('Trip #'+id+' deleted — tap Undo within 6s');go('trips');
 }
 
 // ═══════════════════════════════════════════════════
