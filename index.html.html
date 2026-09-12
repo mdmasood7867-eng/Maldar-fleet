@@ -236,11 +236,9 @@ textarea.fc{resize:vertical;min-height:60px}
 .pin-key.wide{grid-column:span 2;font-size:14px;color:#64748b}
 .pin-key.del{font-size:18px;color:#64748b}
 .pin-switch{font-size:12px;color:#94a3b8;text-align:center;margin-top:10px;cursor:pointer;text-decoration:underline}
-/* UNDO SYSTEM */
-.undo-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(100px);background:#1e293b;color:#fff;border-radius:12px;padding:12px 18px;font-size:13px;font-weight:500;z-index:8000;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.3);display:flex;align-items:center;gap:10px;min-width:280px}
-.undo-toast.show{transform:translateX(-50%) translateY(0)}
-.undo-toast-btn{background:#3b82f6;color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0}
-.undo-toast-btn:hover{background:#2563eb}
+#undo-banner{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:12px 18px;border-radius:14px;z-index:9999;display:none;flex-direction:row;align-items:center;gap:12px;font-size:13px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,.4);min-width:280px;max-width:380px;white-space:nowrap}
+#undo-banner.show{display:flex!important}
+#undo-banner .ub-btn{background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0}
 #login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px}
 .login-card{background:#fff;border-radius:20px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 25px 80px rgba(0,0,0,.4);text-align:center}
 .login-logo{width:56px;height:56px;background:linear-gradient(135deg,#2563eb,#7c3aed);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px}
@@ -323,13 +321,10 @@ textarea.fc{resize:vertical;min-height:60px}
   <span id="gs-status">Not connected</span>
   <button class="gs-btn" onclick="gsConnect()" id="gs-connect-btn">Connect Google Sheets</button>
 </div>
-<!-- UNDO TOAST -->
-<div class="undo-toast" id="undo-toast">
-  <span id="undo-msg">Item deleted</span>
-  <button class="undo-toast-btn" onclick="doUndo()">↩ Undo</button>
-</div>
+
 
 <div id="app">
+<div id="undo-banner"><span id="undo-msg" style="flex:1"></span><button class="ub-btn" onclick="doUndo()">↩ Undo</button><button onclick="hideUndoBanner()" style="background:transparent;color:#94a3b8;border:none;font-size:18px;cursor:pointer;padding:0 4px">×</button></div>
 <!-- SIDEBAR -->
 <nav id="sidebar">
   <div class="sb-logo">
@@ -1770,6 +1765,25 @@ function quickStatus(id, newStatus){
   save();go('trips');
 }
 
+let _undoFn=null,_undoTimer=null;
+function showUndoBanner(msg,fn){
+  _undoFn=fn;clearTimeout(_undoTimer);
+  const b=document.getElementById('undo-banner');
+  const m=document.getElementById('undo-msg');
+  if(b&&m){
+    m.textContent=msg;
+    b.style.display='flex';
+    b.classList.add('show');
+  }
+  _undoTimer=setTimeout(hideUndoBanner,6000);
+}
+function hideUndoBanner(){
+  const b=document.getElementById('undo-banner');
+  if(b){b.classList.remove('show');b.style.display='none';}
+  _undoFn=null;clearTimeout(_undoTimer);
+}
+function doUndo(){if(_undoFn){_undoFn();hideUndoBanner();}}
+
 function requireReason(action, cb){
   const u = currentUser();
   // Admin with bypass enabled can skip reason
@@ -1794,13 +1808,10 @@ function delTrip(id){
     const snapTrip={...trip};const snapFuel=[...relFuel];
     DB.fuel=DB.fuel.filter(f=>f.tripId!==id);
     DB.trips=DB.trips.filter(x=>x.id!==id);
-    pushUndo('Trip #'+id+' ('+( trip.from||'?')+'→'+(trip.to||'?')+' '+INR(+(trip.income)||0)+')',()=>{
-      DB.trips.push(snapTrip);
-      snapFuel.forEach(f=>DB.fuel.push(f));
-      recalcFuel(snapTrip.tid||1);
-    });
+
     log('Trip Deleted','#'+id+' — Reason: '+reason);recalcFuel(1);recalcFuel(2);save();
-    showUndoToast('Trip #'+id+' deleted — tap Undo within 6s');go('trips');
+    showUndoBanner('Trip #'+id+' deleted — undo?',()=>{DB.trips.push(snapTrip);snapFuel.forEach(f2=>DB.fuel.push(f2));recalcFuel(snapTrip.tid||1);log('Trip Restored','#'+id);save();go('trips');});
+    go('trips');
   });
 }
 
@@ -1890,11 +1901,13 @@ function mfC(){const e=document.getElementById('mf-c');if(e)e.textContent=INR(nv
 function delFuel(id){
   const f=DB.fuel.find(x=>x.id===id);if(!f)return;
   if(!confirm('Delete this fuel entry? '+f.ltrs+'L @ ₹'+f.ppl+'/L'))return;
-  const snap={...f};const tid2=f.tid||1;
-  DB.fuel=DB.fuel.filter(x=>x.id!==id);
-  pushUndo(`Fuel entry #${id} (${snap.ltrs}L @ ₹${snap.ppl}/L)`,()=>{DB.fuel.push(snap);recalcFuel(tid2);});
-  log('Fuel Deleted',`#${id}`);recalcFuel(tid2);save();
-  showUndoToast('Fuel entry deleted — tap Undo within 6s');go('fuel');
+  requireReason('Delete Fuel #'+id,(reason)=>{
+    const snap={...f};const tid2=f.tid||1;
+    DB.fuel=DB.fuel.filter(x=>x.id!==id);
+    log('Fuel Deleted','#'+id+' — '+reason);recalcFuel(tid2);save();
+    showUndoBanner('Fuel entry deleted — tap to undo',()=>{DB.fuel.push(snap);recalcFuel(tid2);log('Fuel Restored','#'+id);save();go('fuel');});
+    go('fuel');
+  });
 }
 
 // ═══════════════════════════════════════════════════
@@ -1959,9 +1972,11 @@ function delExp(id){
   if(!confirm('Delete expense: '+e.cat+' — ₹'+e.amt+'?'))return;
   const snap={...e};
   DB.expenses=DB.expenses.filter(x=>x.id!==id);
-  pushUndo(`Expense #${id} (${snap.cat} ₹${snap.amt})`,()=>{DB.expenses.push(snap);});
-  log('Expense Deleted',`#${id}`);save();
-  showUndoToast('Expense deleted — tap Undo within 6s');go('expenses');
+
+  requireReason('Delete Expense #'+id,(r)=>{const snap={...e};DB.expenses=DB.expenses.filter(x=>x.id!==id);
+log('Expense Deleted','#'+id+' — '+r);save();
+showUndoBanner('Expense deleted — undo?',()=>{DB.expenses.push(snap);log('Expense Restored','#'+id);save();go('exp');});
+go('exp');});
 }
 
 // ═══════════════════════════════════════════════════
@@ -2265,9 +2280,11 @@ function delDriver(id){
   if(!confirm('Delete driver: '+d.name+'?'))return;
   const snap={...d};
   DB.drivers=DB.drivers.filter(x=>x.id!==id);
-  pushUndo(`Driver: ${snap.name}`,()=>{DB.drivers.push(snap);});
-  log('Driver Deleted',d.name);save();
-  showUndoToast('Driver deleted — tap Undo within 6s');go('drivers');
+
+  requireReason('Delete Driver '+d.name,(r)=>{const snap={...d};DB.drivers=DB.drivers.filter(x=>x.id!==id);
+log('Driver Deleted',d.name+' — '+r);save();
+showUndoBanner('Driver '+d.name+' deleted — undo?',()=>{DB.drivers.push(snap);log('Driver Restored',d.name);save();go('drivers');});
+go('drivers');});
 }
 
 // ═══════════════════════════════════════════════════
@@ -2432,9 +2449,11 @@ function delBroker(id){
   if(!confirm('Delete broker: '+b.name+'? Their trips will NOT be deleted.'))return;
   const snap={...b};
   DB.brokers=DB.brokers.filter(x=>x.id!==id);
-  pushUndo(`Broker: ${snap.name}`,()=>{DB.brokers.push(snap);});
-  log('Broker Deleted',b.name);save();
-  showUndoToast('Broker deleted — tap Undo within 6s');go('brokers');
+
+  requireReason('Delete Broker '+b.name,(r)=>{const snap={...b};DB.brokers=DB.brokers.filter(x=>x.id!==id);
+log('Broker Deleted',b.name+' — '+r);save();
+showUndoBanner('Broker '+b.name+' deleted — undo?',()=>{DB.brokers.push(snap);log('Broker Restored',b.name);save();go('brokers');});
+go('brokers');});
 }
 
 // ═══════════════════════════════════════════════════
@@ -2502,9 +2521,11 @@ function delMaint(id){
   if(!confirm('Delete service item: '+m.item+'? All its service history will be lost.'))return;
   const snap={...m};
   DB.maint=DB.maint.filter(x=>x.id!==id);
-  pushUndo(`Maintenance item: ${snap.item}`,()=>{DB.maint.push(snap);});
-  log('Maintenance Deleted',m.item);save();
-  showUndoToast('Maintenance item deleted — tap Undo within 6s');go('maint');
+
+  requireReason('Delete Maintenance #'+id,(r)=>{const snap={...m};DB.maint=DB.maint.filter(x=>x.id!==id);
+log('Maintenance Deleted',(m.item||'#'+id)+' — '+r);save();
+showUndoBanner('Maintenance deleted — undo?',()=>{DB.maint.push(snap);log('Maint Restored','#'+id);save();go('maint');});
+go('maint');});
 }
 
 // ═══════════════════════════════════════════════════
@@ -2620,9 +2641,11 @@ function delDoc(id){
   if(!confirm('Delete document: '+d.name+'?'))return;
   const snap={...d};
   DB.docs=DB.docs.filter(x=>x.id!==id);
-  pushUndo(`Document: ${snap.name}`,()=>{DB.docs.push(snap);});
-  log('Document Deleted',d.name);save();
-  showUndoToast('Document deleted — tap Undo within 6s');go('docs');
+
+  requireReason('Delete Doc '+d.name,(r)=>{const snap={...d};DB.docs=DB.docs.filter(x=>x.id!==id);
+log('Document Deleted',d.name+' — '+r);save();
+showUndoBanner('Document deleted — undo?',()=>{DB.docs.push(snap);log('Doc Restored',d.name);save();go('docs');});
+go('docs');});
 }
 
 // ═══════════════════════════════════════════════════
@@ -2861,9 +2884,11 @@ function delLoan(id){
   if(!confirm('Delete loan: '+l.purpose+' (₹'+l.amount+') and all '+pays.length+' repayments?'))return;
   const snapL={...l};const snapP=[...pays];
   DB.loans=DB.loans.filter(x=>x.id!==id);DB.loanPay=DB.loanPay.filter(x=>x.lid!==id);
-  pushUndo(`Loan: ${snapL.purpose} ₹${snapL.amount}`,()=>{DB.loans.push(snapL);snapP.forEach(p=>DB.loanPay.push(p));});
-  log('Loan Deleted',`#${id}`);save();
-  showUndoToast('Loan deleted — tap Undo within 6s');go('loans');
+
+  requireReason('Delete Loan #'+id,(r)=>{const snap={...l};DB.loans=DB.loans.filter(x=>x.id!==id);
+log('Loan Deleted','#'+id+' — '+r);save();
+showUndoBanner('Loan deleted — undo?',()=>{DB.loans.push(snap);log('Loan Restored','#'+id);save();go('loans');});
+go('loans');});
 }
 
 // ═══════════════════════════════════════════════════
@@ -3267,9 +3292,11 @@ function delFixed(id){
   if(!confirm('Delete fixed cost: '+f.item+'?'))return;
   const snap={...f};
   DB.fixed=DB.fixed.filter(x=>x.id!==id);
-  pushUndo(`Fixed cost: ${snap.item} ₹${snap.annual}/yr`,()=>{DB.fixed.push(snap);});
-  log('Fixed Cost Deleted',f.item);save();
-  showUndoToast('Fixed cost deleted — tap Undo within 6s');go('fixed');
+
+  requireReason('Delete Fixed Cost #'+id,(r)=>{const snap={...f};DB.fixed=DB.fixed.filter(x=>x.id!==id);
+log('Fixed Cost Deleted',(f.item||'#'+id)+' — '+r);save();
+showUndoBanner('Fixed cost deleted — undo?',()=>{DB.fixed.push(snap);log('Fixed Restored','#'+id);save();go('fixed');});
+go('fixed');});
 }
 function openFixedModal(){
   OM('Add Fixed Cost',`
@@ -5225,89 +5252,16 @@ function saveCreds(){
   alert('✅ Login credentials saved!\n\nPIN: '+(pin?'Updated':'Unchanged')+'\nUsername: '+u+'\nPassword: '+(p?'Updated':'Unchanged'));
 }
 
-// ── UNDO SYSTEM ───────────────────────────────────────────────────────────────
-let _undoStack = [];
-let _undoTimer = null;
 
-const UNDO_REASONS = [
-  'Wrong entry — entered by mistake',
-  'Duplicate — already entered',
-  'Data correction — fixing error',
-  'Test entry — was just testing',
-  'Other reason',
-];
 
-function pushUndo(label, restoreFn){
-  _undoStack.push({label, restoreFn, ts: Date.now()});
-  if(_undoStack.length > 20) _undoStack.shift(); // keep last 20
-}
 
-function showUndoToast(msg){
-  const toast=document.getElementById('undo-toast');
-  const msgEl=document.getElementById('undo-msg');
-  if(!toast||!msgEl)return;
-  msgEl.textContent=msg;
-  toast.classList.add('show');
-  if(_undoTimer)clearTimeout(_undoTimer);
-  _undoTimer=setTimeout(()=>{
-    toast.classList.remove('show');
-  }, 6000); // 6 seconds to undo
-}
 
-function doUndo(){
-  // Hide toast
-  const toast=document.getElementById('undo-toast');
-  if(toast)toast.classList.remove('show');
-  if(_undoTimer)clearTimeout(_undoTimer);
-  if(!_undoStack.length){alert('Nothing to undo.');return;}
-  const last=_undoStack[_undoStack.length-1];
-  // Show reason modal
-  showUndoReasonModal(last);
-}
 
-function showUndoReasonModal(item){
-  const opts=UNDO_REASONS.map((r,i)=>`<option value="${i}">${r}</option>`).join('');
-  OM('Undo — Reason Required',`
-    <div class="alert al-am mb12">⚠️ You are about to UNDO: <strong>${H(item.label)}</strong><br>
-    This will restore the deleted record. A reason is required for the audit log.</div>
-    <div class="fg">
-      <label class="fl">Reason Category <span class="req">*</span></label>
-      <select class="fc" id="undo-cat">
-        <option value="">-- Select a reason --</option>
-        ${opts}
-      </select>
-    </div>
-    <div class="fg">
-      <label class="fl">Additional Details <span class="req">*</span> <span class="fs11 col-3">(min 10 characters)</span></label>
-      <textarea class="fc" id="undo-detail" rows="3" placeholder="Explain why you are undoing this deletion..."></textarea>
-    </div>`,
-  ()=>{
-    const cat=document.getElementById('undo-cat')?.value;
-    const detail=(document.getElementById('undo-detail')?.value||'').trim();
-    if(!cat){alert('Please select a reason category.');return;}
-    if(detail.length<10){alert('Please provide more details (minimum 10 characters).');return;}
-    // Execute undo
-    const fullReason=UNDO_REASONS[+cat]+' — '+detail;
-    item.restoreFn();
-    _undoStack.pop();
-    log('UNDO',item.label+' | Reason: '+fullReason);
-    save();
-    CM();
-    alert('✅ Undo successful! Record has been restored.\n\nReason logged: '+fullReason);
-    go(CP); // refresh current page
-  });
-}
-
-// ═══════════════════════════════════════════════════
-// SMART ALERT SYSTEM
-// ═══════════════════════════════════════════════════
-
-// Alert thresholds (days before expiry)
 const ALERT_THRESHOLDS = {
-  'Insurance':  [120, 30, 7],   // 4 months, 1 month, 1 week
+  'Insurance':  [120, 30, 7],
   'RC':         [120, 30, 7],
   'Permit':     [120, 30, 7],
-  'Road Tax':   [60,  30, 7],   // 2 months, 1 month, 1 week
+  'Road Tax':   [60,  30, 7],
   'Fitness':    [60,  30, 7],
   'Pollution':  [30,  7,  1],
   'default':    [30,  7,  1],
