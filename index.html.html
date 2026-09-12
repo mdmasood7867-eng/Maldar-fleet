@@ -5579,8 +5579,7 @@ function canAccessPage(page){
 // ── Admin page ─────────────────────────────────────────────────────────────
 function pgAdmin(){
   if(!isAdmin()){
-    document.getElementById('app').innerHTML='<div class="card" style="margin:20px"><div class="alert al-rd">⛔ Admin access only.</div></div>';
-    return;
+    return '<div class="card"><div class="alert al-rd">⛔ Admin access only.</div></div>';
   }
   const users = DB.users||[];
   const allPages = [
@@ -5613,7 +5612,7 @@ function pgAdmin(){
     {id:'emptyKm',label:'Empty KM Report'},
   ];
 
-  document.getElementById('app').innerHTML=`
+  return`
   <div class="card mb14">
     <div class="fw7 mb4" style="font-size:15px">👤 User Management</div>
     <div class="infobox mb12">Create and manage users. Admin and Manager see all financial data. Driver role hides all money figures. Custom lets you set access page by page.</div>
