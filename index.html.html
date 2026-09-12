@@ -5182,14 +5182,11 @@ function doLogin(){
 
 function unlockApp(){
   sessionStorage.setItem('FL_AUTH','yes');
-  const scr=document.getElementById('login-screen');
-  const lbtn=document.getElementById('lock-btn');
-  if(scr)scr.style.display='none';
-  if(lbtn)lbtn.style.display='block';
+  _pinBuf='';
   const err=document.getElementById('login-err');
   if(err)err.style.display='none';
-  _pinBuf='';
-  go('dashboard');
+  // Show user selector if sub-users exist, else login as admin directly
+  showUserSelect();
 }
 
 function doLogout(){
