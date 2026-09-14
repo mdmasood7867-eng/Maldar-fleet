@@ -5192,6 +5192,7 @@ function unlockApp(){
 function doLogout(){
   if(!confirm('Lock the app and sign out?'))return;
   sessionStorage.removeItem('FL_AUTH');
+  sessionStorage.removeItem('FL_UID'); // Clear current user so selector shows again
   const scr=document.getElementById('login-screen');
   const lbtn=document.getElementById('lock-btn');
   const uEl=document.getElementById('login-user');
